@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Value Line</title>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <div class="search-form">
+        <div class="search-header">
+            <div class="brand" title="My Value Line">
+                <svg width="26" height="26" viewBox="0 0 26 26" aria-label="My Value Line">
+                    <rect width="26" height="26" rx="6" fill="#111111"/>
+                    <text x="13" y="17.5" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff"
+                          font-family="-apple-system, 'Segoe UI', Roboto, sans-serif" letter-spacing="0.5">VL</text>
+                </svg>
+            </div>
+            <div class="search-buttons">
+                <select id="versionSelect" title="数据版本"></select>
+                <div class="search-input-wrapper">
+                    <svg id="searchIcon" class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.2" stroke-linecap="round" role="button" aria-label="查询">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <line x1="21" y1="21" x2="16.5" y2="16.5"></line>
+                    </svg>
+                    <input type="text" id="stockCodeInput" placeholder="搜索代码或名称" autocomplete="off">
+                    <kbd id="kbdHint" title="打开快捷搜索">⌘K</kbd>
+                    <div id="suggestions" class="suggestions" hidden></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="errorMessage" class="error-message" hidden></div>
+    <div id="stockContainer"></div>
+
+    <!-- ⌘K 居中搜索弹窗 -->
+    <div id="searchModal" class="search-modal" hidden>
+        <div id="modalBackdrop" class="search-modal-backdrop"></div>
+        <div class="search-modal-dialog" role="dialog" aria-modal="true">
+            <input type="text" id="modalInput" placeholder="搜索代码或名称…" autocomplete="off">
+            <div id="modalSuggestions" class="suggestions modal-suggestions" hidden></div>
+            <div class="search-modal-hint">↑↓ 选择 · Enter 打开 · Esc 关闭</div>
+        </div>
+    </div>
+
+    <script src="data/versions.js"></script>
+    <script src="static/js/app.js"></script>
+</body>
+</html>

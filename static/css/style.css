@@ -1,0 +1,705 @@
+/* My Value Line - 静态站点样式 */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 16px 20px;
+    background-color: #f5f5f5;
+    color: #2c3e50;
+}
+
+/* ------------------------------------------------------------------ */
+/* 顶部搜索栏                                                          */
+/* ------------------------------------------------------------------ */
+
+.search-form {
+    padding: 2px 2px 10px;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 12px;
+}
+
+.search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Logo：黑白极简 */
+.brand {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.brand svg { display: block; }
+
+.search-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+/* 搜索输入：内嵌放大镜 + ⌘K 徽标 */
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.search-icon:hover { color: #2563eb; }
+
+input[type="text"] {
+    padding: 6px 46px 6px 30px;
+    font-size: 13px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    width: 170px;
+    background: transparent;
+    color: #1e293b;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    background: white;
+    border-color: #93c5fd;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+
+input[type="text"]::placeholder { color: #aab2bd; }
+
+#kbdHint {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: inherit;
+    font-size: 10px;
+    color: #94a3b8;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+#kbdHint:hover { color: #2563eb; border-color: #bfdbfe; }
+
+/* 版本下拉：幽灵样式 */
+#versionSelect {
+    padding: 5px 8px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+#versionSelect:hover { background: #eef1f5; }
+#versionSelect:focus { outline: none; border-color: #93c5fd; }
+
+/* ------------------------------------------------------------------ */
+/* 搜索联想（内联 + 弹窗共用）                                          */
+/* ------------------------------------------------------------------ */
+
+.suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 320px;
+    z-index: 100;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.suggestion-item {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover,
+.suggestion-item.active { background: #eef4ff; }
+
+.suggestion-item .s-code {
+    font-family: 'Courier New', monospace;
+    color: #7f8c8d;
+    min-width: 90px;
+}
+
+.suggestion-item .s-name { font-weight: 600; color: #2c3e50; }
+.suggestion-item .s-py { color: #c3cad3; font-size: 11px; }
+.suggestion-item .s-industry { color: #95a5a6; font-size: 12px; margin-left: auto; }
+
+/* ⌘K 居中搜索弹窗 */
+.search-modal { position: fixed; inset: 0; z-index: 1000; }
+
+.search-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(30, 41, 59, 0.35);
+}
+
+.search-modal-dialog {
+    position: relative;
+    margin: 18vh auto 0;
+    width: min(520px, 92vw);
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.24);
+    overflow: hidden;
+}
+
+.search-modal-dialog input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    border-radius: 0;
+    padding: 15px 18px;
+    font-size: 17px;
+}
+
+.search-modal-dialog input[type="text"]:focus { outline: none; box-shadow: none; }
+
+.modal-suggestions {
+    position: static;
+    width: 100%;
+    box-sizing: border-box;
+    border: none;
+    border-top: 1px solid #f0f0f0;
+    border-radius: 0;
+    box-shadow: none;
+    max-height: 42vh;
+}
+
+.modal-suggestions .suggestion-item { padding: 9px 18px; font-size: 14px; }
+
+.search-modal-hint {
+    padding: 7px 18px;
+    font-size: 11px;
+    color: #94a3b8;
+    border-top: 1px solid #f0f0f0;
+    background: #fafbfc;
+}
+
+/* ------------------------------------------------------------------ */
+/* 错误提示                                                            */
+/* ------------------------------------------------------------------ */
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid #f5c6cb;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+/* ------------------------------------------------------------------ */
+/* 股票卡片                                                            */
+/* ------------------------------------------------------------------ */
+
+.stock-card-compact {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    margin-bottom: 10px;
+    overflow: hidden;
+    border: 1px solid #ecf0f1;
+}
+
+/* 头部：公司标识 + 关键行情指标条 */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    padding: 8px 14px;
+    border-bottom: 1px solid #f0f2f5;
+}
+
+.card-identity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.stock-name {
+    font-size: 17px;
+    font-weight: 650;
+    color: #1e293b;
+}
+
+.stock-code {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7f8c8d;
+    background: #f4f6f8;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 0.5px;
+}
+
+.stock-tag {
+    font-size: 11px;
+    color: #64748b;
+    background: #f4f6f8;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.metric-strip {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-left: auto;
+}
+
+.metric-item {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.metric-label {
+    font-size: 10.5px;
+    color: #94a3b8;
+    letter-spacing: 0.3px;
+}
+
+.metric-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+}
+
+.metric-item.primary .metric-value {
+    font-size: 14.5px;
+    font-weight: 650;
+    color: #1e293b;
+}
+
+/* 主体：季度营收 + 同期趋势 + EV */
+.card-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 0;
+}
+
+.card-body.has-trend {
+    grid-template-columns: minmax(0, 1fr) 470px 300px;
+}
+
+.card-panel {
+    padding: 8px 14px 10px;
+    min-width: 0;
+}
+
+.ev-panel, .trend-panel { border-left: 1px solid #f0f2f5; }
+
+/* 同期趋势面板 */
+.seg-control {
+    float: right;
+    display: inline-flex;
+    gap: 2px;
+    background: #f4f6f8;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.seg-btn {
+    padding: 1px 8px;
+    font-size: 10.5px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #64748b;
+    cursor: pointer;
+    line-height: 1.6;
+}
+
+.seg-btn:hover { background: #e8ecf1; color: #334155; }
+
+.seg-btn.active {
+    background: white;
+    color: #1e293b;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(16,24,40,0.1);
+}
+
+.trend-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.trend-table th {
+    color: #94a3b8;
+    font-weight: 600;
+    padding: 3px 6px;
+    text-align: right;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 11px;
+}
+
+.trend-table td {
+    padding: 5px 6px;
+    text-align: right;
+    border-bottom: 1px solid #f5f7f9;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.trend-table tr:last-child td { border-bottom: none; }
+.trend-table tbody tr:hover td { background-color: rgba(250, 204, 21, 0.22); }
+
+.trend-table td:first-child,
+.trend-table th:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: #64748b;
+    padding-left: 0;
+}
+
+.yoy {
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+.yoy.up { color: #e5484d; }
+.yoy.down { color: #16a34a; }
+
+.panel-title {
+    font-size: 11px;
+    font-weight: 650;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin: 2px 0 6px;
+}
+
+.panel-sub {
+    font-weight: 400;
+    color: #94a3b8;
+    text-transform: none;
+    letter-spacing: 0.2px;
+    margin-left: 6px;
+}
+
+.panel-empty {
+    color: #94a3b8;
+    font-size: 12px;
+    padding: 8px 0;
+}
+
+/* 季度营收表 */
+.revenue-table {
+    width: 100%;
+    max-width: 640px;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.revenue-table th {
+    color: #94a3b8;
+    font-weight: 600;
+    padding: 3px 8px;
+    text-align: right;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+}
+
+.revenue-table td {
+    padding: 4px 8px;
+    text-align: right;
+    border-bottom: 1px solid #f5f7f9;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+}
+
+.revenue-table tr:last-child td { border-bottom: none; }
+.revenue-table tbody tr:hover td { background-color: rgba(250, 204, 21, 0.22); }
+
+.revenue-table td:first-child,
+.revenue-table th:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: #64748b;
+    padding-left: 0;
+}
+
+.revenue-table .fy-cell { font-weight: 650; color: #1e293b; }
+
+/* EV 指标面板 */
+.ev-rows { display: flex; flex-direction: column; }
+
+.ev-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 3.5px 0;
+    font-size: 12.5px;
+    border-bottom: 1px solid #f5f7f9;
+}
+
+.ev-row:last-child { border-bottom: none; }
+.ev-row:hover { background-color: rgba(250, 204, 21, 0.22); }
+.ev-row span { color: #64748b; }
+.ev-row b {
+    font-weight: 500;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+}
+
+.ev-row.main span { font-weight: 600; color: #475569; }
+.ev-row.main b { font-weight: 650; font-size: 13.5px; color: #1e293b; }
+
+.ev-ebit-highlight { color: #e5484d !important; }
+
+/* 计算细项（默认折叠） */
+.calc-details { margin-top: 6px; }
+
+.calc-details summary {
+    font-size: 11px;
+    color: #94a3b8;
+    cursor: pointer;
+    user-select: none;
+}
+
+.calc-details summary:hover { color: #64748b; }
+
+.calc-details .detail-item {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #64748b;
+}
+
+.calc-details .detail-item strong { color: #475569; }
+
+/* ------------------------------------------------------------------ */
+/* 历史年度指标表                                                       */
+/* ------------------------------------------------------------------ */
+
+.results-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #ecf0f1;
+    overflow-x: auto;
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+    font-size: 12.5px;
+}
+
+.results-table th {
+    background-color: #f8f9fa;
+    padding: 7px 8px;
+    text-align: right;
+    border-bottom: 2px solid #e9ecef;
+    font-weight: 600;
+    font-size: 12px;
+    color: #475569;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.results-table th:first-child {
+    background-color: #f1f3f5;
+    text-align: left;
+    min-width: 130px;
+    max-width: 130px;
+    position: sticky;
+    left: 0;
+    z-index: 11;
+    padding-left: 14px;
+}
+
+.results-table td {
+    padding: 5px 8px;
+    text-align: right;
+    border-bottom: 1px solid #f0f2f5;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.results-table td:first-child {
+    background-color: #f8f9fa;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    border-right: 1px solid #eef1f4;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    padding-left: 14px;
+}
+
+/* 分区标题行（资产 / 负债 / 股东权益）：分隔三大板块，其余单元格留空 */
+.results-table tbody tr.bs-section-row td {
+    background: #eef1f5;
+    border-top: 2px solid #d7dee7;
+    border-bottom: 1px solid #d7dee7;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+.results-table tbody tr.bs-section-row td.bs-section-label {
+    background: #e3e9f0;
+    font-weight: 700;
+    font-size: 12px;
+    color: #1e293b;
+    letter-spacing: 1px;
+}
+/* 分区标题行不参与悬停高亮，保持分隔观感 */
+.results-table tbody tr.bs-section-row:hover td { background: #eef1f5; }
+.results-table tbody tr.bs-section-row:hover td.bs-section-label { background: #e3e9f0; }
+
+/* 合计 / 总计行：浅蓝灰底色，强调小计与合计，便于分区阅读
+   固定列(sticky)用不透明色；置于悬停规则之前，保证悬停高亮仍能覆盖 */
+.results-table tbody tr.bs-total-row td { background-color: #eaeef4; font-weight: 600; }
+.results-table tbody tr.bs-total-row td:first-child { background-color: #dfe5ee; color: #334155; }
+
+/* 行悬停：半透明黄色高亮，便于横向追踪数值
+   固定列(sticky)必须用不透明色，否则滚动时会透出下层内容 */
+.results-table tbody tr:hover td { background-color: rgba(250, 204, 21, 0.22); }
+.results-table tbody tr:hover td:first-child { background-color: #f6eec2; }
+
+/* 双击行插入的临时表头：随行滚动（取消纵向 sticky，避免和真表头一起吸顶）
+   配行悬停同款黄色高亮；固定列(sticky)用不透明色，避免横向滚动透出下层内容 */
+tr.temp-header-row th {
+    position: static;
+    border-top: 2px solid #e2e8f0;
+    border-bottom: 2px solid #e2e8f0;
+    background-color: rgba(250, 204, 21, 0.22);
+}
+.results-table tr.temp-header-row th:first-child {
+    position: sticky;
+    left: 0;
+    top: auto;
+    background-color: #f6eec2;
+}
+
+.number { font-variant-numeric: tabular-nums; }
+
+/* 资产负债表分区 */
+.balance-sheet-container { margin-top: 10px; }
+
+.table-section-title {
+    font-size: 11px;
+    font-weight: 650;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 金额 / % 视图切换：靠右，复用 .seg-btn 外观 */
+.bs-mode-control {
+    float: none;
+    margin-left: auto;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.no-data { color: #c3cad3; }
+
+.stock-info {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+/* ------------------------------------------------------------------ */
+/* 响应式                                                              */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 1320px) {
+    .card-body.has-trend { grid-template-columns: minmax(0, 1fr) 300px; }
+    .trend-panel {
+        grid-column: 1 / -1;
+        order: 3;
+        border-left: none;
+        border-top: 1px solid #f0f2f5;
+    }
+}
+
+@media (max-width: 900px) {
+    .card-body, .card-body.has-trend { grid-template-columns: 1fr; }
+    .ev-panel, .trend-panel {
+        border-left: none;
+        border-top: 1px solid #f0f2f5;
+    }
+}
+
+@media (max-width: 768px) {
+    body { padding: 10px; }
+
+    .search-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    .search-title { text-align: center; }
+    .search-buttons { justify-content: center; }
+
+    input[type="text"] { width: 100%; }
+    .search-input-wrapper { flex: 1; }
+    .suggestions { width: 100%; }
+
+    .metric-strip { margin-left: 0; }
+}

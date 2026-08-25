@@ -2,7 +2,9 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-    max-width: 1400px;
+    /* 页面宽度贴近表格实际所需宽度：各卡片统一满宽、右缘对齐，
+       同时列间距不至于被拉得过开 */
+    max-width: 1280px;
     margin: 0 auto;
     padding: 16px 20px;
     background-color: #f5f5f5;
@@ -114,6 +116,17 @@ input[type="text"]::placeholder { color: #aab2bd; }
 
 #versionSelect:hover { background: #eef1f5; }
 #versionSelect:focus { outline: none; border-color: #93c5fd; }
+
+/* 市场切换（A股 / 港股）：复用 seg-control，字号加大以适配顶部工具栏 */
+.market-switch {
+    float: none;
+    flex-shrink: 0;
+}
+
+.market-switch .seg-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+}
 
 /* ------------------------------------------------------------------ */
 /* 搜索联想（内联 + 弹窗共用）                                          */
@@ -431,6 +444,7 @@ input[type="text"]::placeholder { color: #aab2bd; }
 
 /* 季度营收表 */
 .revenue-table {
+    /* 铺满所在面板，避免与右侧「同期趋势」之间留下空白 */
     width: 100%;
     max-width: 640px;
     border-collapse: collapse;
@@ -453,6 +467,7 @@ input[type="text"]::placeholder { color: #aab2bd; }
     border-bottom: 1px solid #f5f7f9;
     color: #334155;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .revenue-table tr:last-child td { border-bottom: none; }
@@ -528,15 +543,17 @@ input[type="text"]::placeholder { color: #aab2bd; }
 }
 
 .results-table {
+    /* 满宽铺满卡片，与顶部信息卡右缘对齐；页面 max-width 已收窄，
+       列间距不会被过度拉开。min-width 作为窄屏横向滚动的下限 */
     width: 100%;
     border-collapse: collapse;
-    min-width: 900px;
+    min-width: 600px;
     font-size: 12.5px;
 }
 
 .results-table th {
     background-color: #f8f9fa;
-    padding: 7px 8px;
+    padding: 7px 10px;
     text-align: right;
     border-bottom: 2px solid #e9ecef;
     font-weight: 600;
@@ -551,16 +568,17 @@ input[type="text"]::placeholder { color: #aab2bd; }
 .results-table th:first-child {
     background-color: #f1f3f5;
     text-align: left;
-    min-width: 130px;
-    max-width: 130px;
+    min-width: 112px;
+    max-width: 148px;
     position: sticky;
     left: 0;
     z-index: 11;
     padding-left: 14px;
+    padding-right: 12px;
 }
 
 .results-table td {
-    padding: 5px 8px;
+    padding: 5px 10px;
     text-align: right;
     border-bottom: 1px solid #f0f2f5;
     color: #334155;
@@ -578,6 +596,7 @@ input[type="text"]::placeholder { color: #aab2bd; }
     left: 0;
     z-index: 5;
     padding-left: 14px;
+    padding-right: 12px;
 }
 
 /* 分区标题行（资产 / 负债 / 股东权益）：分隔三大板块，其余单元格留空 */

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.ashare-value-line/schemas/hk-mcp-tools.json",
+  "title": "XHCJ 港股 MCP 工具补充 Schema",
+  "description": "补充 MCP tools/list 未展开的港股代码、IndicatorExps 和隐藏目录 5030。fetch_hk_data.py 只允许本文件定义的港股路由。",
+  "type": "object",
+  "required": ["quote", "financial"],
+  "properties": {
+    "quote": { "$ref": "#/$defs/quoteRoute" },
+    "financial": { "$ref": "#/$defs/financialRoute" }
+  },
+  "$defs": {
+    "hkFinancialCode": {
+      "type": "string",
+      "pattern": "^[0-9]{5}\\.HK$",
+      "examples": ["00700.HK"]
+    },
+    "hkQuoteCode": {
+      "type": "string",
+      "pattern": "^[0-9]{5}\\.(HKM|HKG)$",
+      "description": "HKM 为港交所主板，HKG 为港交所创业板。",
+      "examples": ["00700.HKM"]
+    },
+    "reportParams": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ReportDate", "ReportType", "Unit"],
+      "properties": {
+        "ReportDate": { "type": "string", "format": "date", "examples": ["2025-12-31"] },
+        "ReportType": { "const": "0", "description": "合并报表" },
+        "Unit": { "const": "8", "description": "亿元（按记账本位币）" }
+      }
+    },
+    "indicatorExpression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["Code", "Name", "Params"],
+      "properties": {
+        "Code": {
+          "type": "string",
+          "pattern": "^[0-9]+$",
+          "examples": ["54504", "54328"],
+          "x-quarterly-revenue-by-family": {
+            "description": "单季度（非累计）营收，报告期无对应单季申报时返回 null；港股多数公司仅披露中期/年度报表。",
+            "general": { "Code": "54592", "Name": "HKS_GE_ISQ_REVENUE_DW" },
+            "bank": { "Code": "54286", "Name": "HKS_B_ISQ_OPREVENUE_DW" },
+            "insurance": { "Code": "53940", "Name": "HKS_I_ISQ_OPREVENUE_DW" },
+            "securities": { "Code": "54760", "Name": "HKS_S_ISQ_REVENUE_DW" }
+          }
+        },
+        "Name": {
+          "type": "string",
+          "pattern": "^HKS?_",
+          "description": "只允许港股原始指标族 HK_* / HKS_*；禁止 S_E_* 等 A 股指标。"
+        },
+        "Params": {
+          "oneOf": [
+            { "$ref": "#/$defs/reportParams" },
+            { "type": "object", "maxProperties": 0, "description": "仅用于 HK_FR_CURRENCY_DW 等无参数元数据指标。" }
+          ]
+        }
+      }
+    },
+    "catalogRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["CategoryIDs", "NodeName", "PageNo", "PageSize"],
+      "properties": {
+        "CategoryIDs": {
+          "const": "5030",
+          "description": "MCP 原始 schema 只标注股票 2202；实测 5030 才是港股指标目录。"
+        },
+        "NodeName": { "type": "string" },
+        "PageNo": { "type": "integer", "minimum": 1 },
+        "PageSize": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "stockBrowserRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["GilCodes", "IndicatorExps", "Sorts"],
+      "properties": {
+        "GilCodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/hkFinancialCode" }
+        },
+        "IndicatorExps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/indicatorExpression" }
+        },
+        "Sorts": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "quoteRoute": {
+      "type": "object",
+      "required": ["server", "tool", "request"],
+      "properties": {
+        "server": { "const": "xhcj-mcp-quote-stock-real" },
+        "tool": {
+          "const": "get-stock-real-data",
+          "description": "向量快照含 dyn_pb_rate/ttm_pe_rate/static_pe_rate 等原始估值字段；get-market-real-data-v2 的紧凑格式缺市净率，会诱发本地跨币种推算。"
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["en_prod_code"],
+          "properties": {
+            "en_prod_code": {
+              "type": "string",
+              "description": "逗号拼接的港股行情代码（HKM 主板 / HKG 创业板）。",
+              "pattern": "^[0-9]{5}\\.(HKM|HKG)(,[0-9]{5}\\.(HKM|HKG))*$",
+              "examples": ["00700.HKM,08005.HKG"]
+            }
+          }
+        }
+      }
+    },
+    "financialRoute": {
+      "type": "object",
+      "required": ["server", "catalogTool", "browserTool", "catalogRequest", "browserRequest"],
+      "properties": {
+        "server": { "const": "xhcj-mcp-financial-market" },
+        "catalogTool": { "const": "get-query-body-for-stock" },
+        "browserTool": { "const": "stock-browser" },
+        "catalogRequest": { "$ref": "#/$defs/catalogRequest" },
+        "browserRequest": { "$ref": "#/$defs/stockBrowserRequest" },
+        "issuerFamilies": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "general" },
+            { "const": "bank" },
+            { "const": "insurance" },
+            { "const": "securities" }
+          ],
+          "items": false
+        }
+      }
+    }
+  },
+  "x-routing-rules": {
+    "financialCode": "00700.HK",
+    "quoteCode": "00700.HKM",
+    "financialCategory": "5030",
+    "forbiddenCategories": ["2202"],
+    "forbiddenFinancialSuffixes": [".SH", ".SZ"],
+    "dualListedPolicy": "两地上市证券仍以 .HK GilCode 查询 5030 港股指标；不得回退或复制 A 股报表。"
+  }
+}

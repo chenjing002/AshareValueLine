@@ -27,7 +27,17 @@ from reportlab.pdfgen import canvas
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-VERSIONS_DIR = DATA_DIR / "versions"
+# A 股与港股版本目录严格分离；默认读 A 股，set_market("hk") 切换。
+VERSIONS_ROOT = DATA_DIR / "versions"
+MARKET_DIRS = ("a_share", "hk")
+VERSIONS_DIR = VERSIONS_ROOT / "a_share"
+
+
+def set_market(market: str) -> None:
+    global VERSIONS_DIR
+    if market not in MARKET_DIRS:
+        sys.exit(f"错误：未知市场 {market}（可选: {', '.join(MARKET_DIRS)}）")
+    VERSIONS_DIR = VERSIONS_ROOT / market
 
 # ---------------------------------------------------------------------------
 # 排版配置（集中可调）
@@ -102,15 +112,18 @@ def parse_js_payload(path: Path, prefix: str) -> dict:
     return json.loads(text[len(prefix):].rstrip(";\n").rstrip(")"))
 
 
-def load_versions() -> list:
+def load_versions(market: str = "a_share") -> list:
     path = DATA_DIR / "versions.js"
     if not path.exists():
         sys.exit("错误：找不到 data/versions.js，请先运行 fetch_data.py")
     text = path.read_text(encoding="utf-8")
-    match = re.search(r"window\.VL_VERSIONS\s*=\s*(\[.*\]);", text, re.S)
+    match = re.search(r"window\.VL_VERSIONS\s*=\s*([\[{].*[\]}]);", text, re.S)
     if not match:
         sys.exit("错误：data/versions.js 格式不符")
-    return json.loads(match.group(1))
+    data = json.loads(match.group(1))
+    if isinstance(data, list):  # 旧格式（未分市场）视为 A 股
+        return data if market == "a_share" else []
+    return data.get(market) or []
 
 
 def load_companies(version_id: str) -> list:
@@ -566,11 +579,13 @@ def main():
     parser = argparse.ArgumentParser(description="生成 Value Line 风格 2 页 A4 PDF")
     parser.add_argument("codes", nargs="+", help="股票代码（如 000002.SZ / 600519 / 公司名）")
     parser.add_argument("--version", help="数据版本号（默认最新）")
+    parser.add_argument("--market", default="a_share", choices=MARKET_DIRS, help="市场（默认 a_share）")
     parser.add_argument("--out", default="output", help="输出目录（默认 output/）")
     args = parser.parse_args()
 
+    set_market(args.market)
     register_fonts()
-    versions = load_versions()
+    versions = load_versions(args.market)
     version_id = args.version or (versions[0]["version"] if versions else None)
     if not version_id:
         sys.exit("错误：没有可用的数据版本")

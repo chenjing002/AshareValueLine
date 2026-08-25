@@ -12,8 +12,22 @@
     var PERCENT_INDICATORS = { '销售毛利率': true, 'ROE': true, '负债率': true };
     var HISTORY_YEARS = 10;
 
+    var MARKETS = [
+        { key: 'a_share', label: 'A股' },
+        { key: 'hk', label: '港股' }
+    ];
+    var DEFAULT_MARKET = 'a_share';
+
+    // 兼容旧版 versions.js（未分市场的扁平数组，视为全部 A 股）
+    var rawVersions = window.VL_VERSIONS;
+    var versionsByMarket = Array.isArray(rawVersions)
+        ? { a_share: rawVersions, hk: [] }
+        : (rawVersions || { a_share: [], hk: [] });
+
     var state = {
-        versions: Array.isArray(window.VL_VERSIONS) ? window.VL_VERSIONS : [],
+        versionsByMarket: versionsByMarket,
+        market: DEFAULT_MARKET,
+        versions: [],            // 当前市场的版本列表
         currentVersion: null,
         companies: [],          // 当前版本公司列表
         companyByCode: {},
@@ -21,6 +35,7 @@
     };
 
     var el = {
+        marketSwitch: document.getElementById('marketSwitch'),
         versionSelect: document.getElementById('versionSelect'),
         input: document.getElementById('stockCodeInput'),
         searchIcon: document.getElementById('searchIcon'),
@@ -38,10 +53,10 @@
     // 数据加载：通过注入 <script> 读取本地 .js 数据文件（file:// 下 fetch 会被浏览器拦截）
     // ------------------------------------------------------------------
 
-    // 快速连续切换（方向键/版本切换）时脚本可能乱序到达：
-    // 回调内校验 code/version 是否仍是当前目标，过期数据直接丢弃，不清空 pending
+    // 快速连续切换（方向键/版本/市场切换）时脚本可能乱序到达：
+    // 回调内校验 market/code/version 是否仍是当前目标，过期数据直接丢弃，不清空 pending
     window.VL_registerCompanies = function (payload) {
-        if (!payload || payload.version !== state.currentVersion) return;
+        if (!payload || payload.market !== state.market || payload.version !== state.currentVersion) return;
         state.companies = payload.companies || [];
         state.companyByCode = {};
         state.companies.forEach(function (c) { state.companyByCode[c.code] = c; });
@@ -49,6 +64,7 @@
     };
     window.VL_registerStock = function (stock) {
         if (!stock || stock.code !== state.currentCode || stock.version !== state.currentVersion) return;
+        if ((stock.market === 'HK' ? 'hk' : 'a_share') !== state.market) return;
         renderStock(stock);
     };
 
@@ -60,19 +76,21 @@
         document.head.appendChild(tag);
     }
 
-    function loadCompanies(versionId, done) {
+    function marketDataDir(market) { return 'data/versions/' + market + '/'; }
+
+    function loadCompanies(market, versionId, done) {
         state.onCompaniesLoaded = done;
-        loadScript('data/versions/' + versionId + '/companies.js', function () {
-            if (versionId === state.currentVersion) {
+        loadScript(marketDataDir(market) + versionId + '/companies.js', function () {
+            if (market === state.market && versionId === state.currentVersion) {
                 showError('无法加载版本 ' + versionId + ' 的公司列表（companies.js 缺失）');
             }
         });
     }
 
-    function loadStock(versionId, code) {
+    function loadStock(market, versionId, code) {
         clearError();
-        loadScript('data/versions/' + versionId + '/stocks/' + code + '.js', function () {
-            if (versionId === state.currentVersion && code === state.currentCode) {
+        loadScript(marketDataDir(market) + versionId + '/stocks/' + code + '.js', function () {
+            if (market === state.market && versionId === state.currentVersion && code === state.currentCode) {
                 el.container.innerHTML = '';
                 showError('版本 ' + versionId + ' 中没有 ' + code + ' 的数据文件');
             }
@@ -80,12 +98,62 @@
     }
 
     // ------------------------------------------------------------------
-    // 版本切换
+    // 市场 / 版本切换
     // ------------------------------------------------------------------
+
+    var MARKET_CODE_PATTERN = { hk: /\.HK$/i, a_share: /\.(SH|SZ|BJ)$/i };
+
+    function marketOfCode(code) {
+        if (MARKET_CODE_PATTERN.hk.test(code)) return 'hk';
+        if (MARKET_CODE_PATTERN.a_share.test(code)) return 'a_share';
+        return null;
+    }
+
+    function rememberLastMarket(market) {
+        try { localStorage.setItem('vl_market', market); } catch (e) { /* file:// 下个别浏览器禁用存储 */ }
+    }
+    function recallLastMarket() {
+        try { return localStorage.getItem('vl_market'); } catch (e) { return null; }
+    }
+
+    function initMarketSwitcher() {
+        el.marketSwitch.addEventListener('click', function (e) {
+            var btn = e.target.closest('.seg-btn');
+            if (!btn) return;
+            switchMarket(btn.dataset.market);
+        });
+
+        // 初始市场：URL # 指定股票的市场 > 上次记忆的市场 > 默认 A 股
+        var hashCode = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
+        var initialMarket = (hashCode && marketOfCode(hashCode)) || recallLastMarket() || DEFAULT_MARKET;
+        if (!state.versionsByMarket[initialMarket] || !state.versionsByMarket[initialMarket].length) {
+            initialMarket = MARKETS.filter(function (m) {
+                return state.versionsByMarket[m.key] && state.versionsByMarket[m.key].length;
+            }).map(function (m) { return m.key; })[0] || DEFAULT_MARKET;
+        }
+        switchMarket(initialMarket);
+    }
+
+    function switchMarket(market) {
+        if (!MARKETS.some(function (m) { return m.key === market; })) return;
+        state.market = market;
+        rememberLastMarket(market);
+        Array.prototype.forEach.call(el.marketSwitch.querySelectorAll('.seg-btn'), function (btn) {
+            btn.classList.toggle('active', btn.dataset.market === market);
+        });
+        state.versions = state.versionsByMarket[market] || [];
+        state.currentVersion = null;
+        state.currentCode = null;
+        el.container.innerHTML = '';
+        el.input.value = '';
+        el.versionSelect.innerHTML = '';
+        clearError();
+        initVersions();
+    }
 
     function initVersions() {
         if (!state.versions.length) {
-            showError('未找到任何数据版本。请先运行: python fetch_data.py --test ... 或 --full');
+            showError('当前市场未找到任何数据版本。请先运行对应的抓取脚本（fetch_data.py / fetch_hk_data.py）生成 --full 或 --test 版本。');
             return;
         }
         var dateOf = function (v) { return (v.created_at || v.version).slice(0, 10); };
@@ -105,21 +173,23 @@
     }
 
     function switchVersion(versionId) {
+        var market = state.market;
         state.currentVersion = versionId;
         el.versionSelect.value = versionId;
-        loadCompanies(versionId, function () {
-            // 首次打开时默认显示：URL # 指定的股票 > 上次浏览的股票
+        loadCompanies(market, versionId, function () {
+            if (market !== state.market || versionId !== state.currentVersion) return; // 已切走
+            // 首次打开该市场时默认显示：URL # 指定的股票 > 该市场上次浏览的股票
             if (!state.currentCode) {
-                var initial = location.hash.length > 1
-                    ? decodeURIComponent(location.hash.slice(1)) : recallLastCode();
+                var hashCode = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
+                var initial = (hashCode && marketOfCode(hashCode) === market) ? hashCode : recallLastCode(market);
                 var company = initial ? findCompany(initial) : null;
                 if (company) {
                     state.currentCode = company.code;
                     el.input.value = company.code;
-                    rememberLastCode(company.code);
+                    rememberLastCode(market, company.code);
                 }
             }
-            if (state.currentCode) loadStock(versionId, state.currentCode);
+            if (state.currentCode) loadStock(market, versionId, state.currentCode);
         });
     }
 
@@ -165,19 +235,19 @@
         return buckets[0].concat(buckets[1], buckets[2]).slice(0, 12);
     }
 
-    function rememberLastCode(code) {
-        try { localStorage.setItem('vl_last_code', code); } catch (e) { /* file:// 下个别浏览器禁用存储 */ }
+    function rememberLastCode(market, code) {
+        try { localStorage.setItem('vl_last_code_' + market, code); } catch (e) { /* file:// 下个别浏览器禁用存储 */ }
     }
-    function recallLastCode() {
-        try { return localStorage.getItem('vl_last_code'); } catch (e) { return null; }
+    function recallLastCode(market) {
+        try { return localStorage.getItem('vl_last_code_' + market); } catch (e) { return null; }
     }
 
     function selectCompany(company) {
         clearError();
         state.currentCode = company.code;
         el.input.value = company.code;
-        rememberLastCode(company.code);
-        loadStock(state.currentVersion, company.code);
+        rememberLastCode(state.market, company.code);
+        loadStock(state.market, state.currentVersion, company.code);
     }
 
     // 共用搜索组件：内联搜索框和 ⌘K 弹窗都用同一份匹配 / 联想 / 键盘导航逻辑
@@ -698,5 +768,5 @@
         }
     });
 
-    initVersions();
+    initMarketSwitcher();
 })();

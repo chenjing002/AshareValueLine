@@ -5,7 +5,7 @@ from pathlib import Path
 
 INDUSTRY = "全国地产"
 base = Path(__file__).resolve().parent
-text = (base / "data/versions/20260823_190219/companies.js").read_text(encoding="utf-8")
+text = (base / "data/versions/a_share/20260823_190219/companies.js").read_text(encoding="utf-8")
 data = json.loads(text[text.index("(") + 1: text.rindex(")")])
 comps = [c for c in data["companies"] if c.get("industry") == INDUSTRY]
 print(f"{INDUSTRY} 公司数: {len(comps)}")

@@ -8,11 +8,12 @@
     python fetch_data.py --full                           # 全量抓取 A 股
     python fetch_data.py --full --resume 20260823_120000 # 续传中断的版本
 
-数据布局（静态站点直接读取，无需服务器）：
-    data/versions.js                          版本索引（下拉框数据源）
-    data/versions/<版本号>/manifest.json      版本元信息
-    data/versions/<版本号>/companies.js       公司列表（搜索用）
-    data/versions/<版本号>/stocks/<代码>.js   单只股票全部数据
+数据布局（静态站点直接读取，无需服务器；A 股与港股版本目录严格分离）：
+    data/versions.js                                  版本索引（按市场分组）
+    data/versions/a_share/<版本号>/manifest.json      版本元信息
+    data/versions/a_share/<版本号>/companies.js       公司列表（搜索用）
+    data/versions/a_share/<版本号>/stocks/<代码>.js   单只股票全部数据
+    data/versions/hk/<版本号>/...                     港股（由 fetch_hk_data.py 写入）
 """
 
 import argparse
@@ -37,7 +38,9 @@ except ImportError:
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-VERSIONS_DIR = DATA_DIR / "versions"
+# A 股与港股版本目录严格分离：本脚本只读写 versions/a_share/。
+MARKET_DIRS = ("a_share", "hk")
+VERSIONS_DIR = DATA_DIR / "versions" / "a_share"
 A_STOCK_CSV = BASE_DIR / "a_stock_companies_20260408.csv"
 
 HISTORY_YEARS = 10          # 历史年度指标年数
@@ -790,7 +793,7 @@ def write_stock_file(version_dir: Path, stock: dict):
 def finalize_version(version_id: str, version_dir: Path, companies: list, meta: dict):
     """写公司列表 / manifest，并更新全局版本索引。"""
     companies_payload = json.dumps(
-        {"version": version_id, "companies": companies}, ensure_ascii=False, separators=(",", ":"))
+        {"market": "a_share", "version": version_id, "companies": companies}, ensure_ascii=False, separators=(",", ":"))
     write_js(version_dir / "companies.js", f"window.VL_registerCompanies({companies_payload});\n")
 
     manifest = {
@@ -806,17 +809,19 @@ def finalize_version(version_id: str, version_dir: Path, companies: list, meta: 
     (version_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # 重建 data/versions.js（扫描所有版本目录的 manifest）
-    versions = []
-    if VERSIONS_DIR.exists():
-        for manifest_path in sorted(VERSIONS_DIR.glob("*/manifest.json"), reverse=True):
+    # 重建 data/versions.js（按市场扫描各自版本目录的 manifest，互不混用）
+    index = {}
+    for market in MARKET_DIRS:
+        versions = []
+        for manifest_path in (DATA_DIR / "versions" / market).glob("*/manifest.json"):
             try:
                 versions.append(json.loads(manifest_path.read_text(encoding="utf-8")))
             except Exception:
                 continue
-    versions.sort(key=lambda m: m["version"], reverse=True)
+        versions.sort(key=lambda m: m["version"], reverse=True)
+        index[market] = versions
     write_js(DATA_DIR / "versions.js",
-             "window.VL_VERSIONS = " + json.dumps(versions, ensure_ascii=False, indent=1) + ";\n")
+             "window.VL_VERSIONS = " + json.dumps(index, ensure_ascii=False, indent=1) + ";\n")
     print(f"[完成] 版本 {version_id}: A股 {manifest['a_count']} 家")
     print(f"[完成] 版本索引已更新: {DATA_DIR / 'versions.js'}")
 

@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """批量为版本内所有 A 股生成 Value Line PDF（逐只容错，失败不中断）。"""
 
+import argparse
 import sys
 import time
 import traceback
@@ -13,12 +14,16 @@ BASE_DIR = Path(__file__).resolve().parent
 
 
 def main():
-    version_id = sys.argv[1] if len(sys.argv) > 1 else None
+    parser = argparse.ArgumentParser(description="批量生成版本内全部股票的 Value Line PDF")
+    parser.add_argument("version", nargs="?", help="数据版本号（默认该市场最新版本）")
+    parser.add_argument("--market", default="a_share", choices=g.MARKET_DIRS, help="市场（默认 a_share）")
+    args = parser.parse_args()
     out_dir = BASE_DIR / "output"
 
+    g.set_market(args.market)
     g.register_fonts()
-    versions = g.load_versions()
-    version_id = version_id or (versions[0]["version"] if versions else None)
+    versions = g.load_versions(args.market)
+    version_id = args.version or (versions[0]["version"] if versions else None)
     if not version_id:
         sys.exit("错误：没有可用的数据版本")
 

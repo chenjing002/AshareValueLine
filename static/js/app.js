@@ -187,6 +187,10 @@
                     state.currentCode = company.code;
                     el.input.value = company.code;
                     rememberLastCode(market, company.code);
+                } else if (state.companies.length) {
+                    // 无 URL # / 历史记录时，默认展示第一家公司，避免首页空白
+                    state.currentCode = state.companies[0].code;
+                    el.input.value = state.companies[0].code;
                 }
             }
             if (state.currentCode) loadStock(market, versionId, state.currentCode);

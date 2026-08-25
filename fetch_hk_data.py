@@ -1098,6 +1098,8 @@ def run(args: argparse.Namespace) -> None:
         print(f"[进度] {processed}/{len(pending)}（累计成功 {done}，失败 {len(failures)}，MCP 请求 {fetcher.request_count}，{elapsed:.1f} 分钟）")
 
     fetched_codes = {path.stem for path in stocks_dir.glob("*.js")} if stocks_dir.exists() else set()
+    if lazy_pinyin is None:
+        print("[警告] 未安装 pypinyin，公司列表将缺少拼音首字母索引（pip install pypinyin）")
     fetched_companies = [
         {"code": entry["code"], "name": entry["name"], "py": pinyin_initials(entry["name"]),
          "industry": entry.get("industry"), "market": "HK"}

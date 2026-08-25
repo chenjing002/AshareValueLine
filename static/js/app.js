@@ -31,8 +31,28 @@
         currentVersion: null,
         companies: [],          // 当前版本公司列表
         companyByCode: {},
-        currentCode: null
+        currentCode: null,
+        pendingCode: null,      // 跨市场跳转时暂存的目标代码，切换市场后由 switchVersion 消费
+        // 全局搜索索引：跨 A 股 / 港股统一检索。按市场存各自最新版本的公司列表。
+        searchByMarket: {},     // { market: { version, companies } }
+        searchList: []          // 扁平化后的全部公司（供 matchCompanies 遍历）
     };
+
+    function normalizeMarketKey(c) { return c && c.market === 'HK' ? 'hk' : 'a_share'; }
+
+    // 把某市场某版本的公司列表并入全局搜索索引（同市场后到的版本覆盖旧的）
+    function indexCompanies(market, version, companies) {
+        if (!market || !companies) return;
+        var existing = state.searchByMarket[market];
+        if (existing && existing.version === version) return; // 已索引，避免重复
+        state.searchByMarket[market] = { version: version, companies: companies };
+        var list = [];
+        MARKETS.forEach(function (m) {
+            var entry = state.searchByMarket[m.key];
+            if (entry) list = list.concat(entry.companies);
+        });
+        state.searchList = list;
+    }
 
     var el = {
         marketSwitch: document.getElementById('marketSwitch'),
@@ -56,7 +76,10 @@
     // 快速连续切换（方向键/版本/市场切换）时脚本可能乱序到达：
     // 回调内校验 market/code/version 是否仍是当前目标，过期数据直接丢弃，不清空 pending
     window.VL_registerCompanies = function (payload) {
-        if (!payload || payload.market !== state.market || payload.version !== state.currentVersion) return;
+        if (!payload || !payload.companies) return;
+        // 任何市场的公司列表都并入全局搜索索引（包括后台预加载的其它市场）
+        indexCompanies(payload.market, payload.version, payload.companies);
+        if (payload.market !== state.market || payload.version !== state.currentVersion) return;
         state.companies = payload.companies || [];
         state.companyByCode = {};
         state.companies.forEach(function (c) { state.companyByCode[c.code] = c; });
@@ -77,6 +100,18 @@
     }
 
     function marketDataDir(market) { return 'data/versions/' + market + '/'; }
+
+    // 后台预加载各市场最新版本的公司列表，填充全局搜索索引（不影响当前展示）。
+    // companies.js 通过 VL_registerCompanies 自行并入索引，无需回调。
+    function preloadSearchIndex() {
+        MARKETS.forEach(function (m) {
+            var versions = state.versionsByMarket[m.key];
+            if (!versions || !versions.length) return;
+            var latest = versions[0].version;
+            if (state.searchByMarket[m.key]) return; // 已加载
+            loadScript(marketDataDir(m.key) + latest + '/companies.js');
+        });
+    }
 
     function loadCompanies(market, versionId, done) {
         state.onCompaniesLoaded = done;
@@ -132,6 +167,7 @@
             }).map(function (m) { return m.key; })[0] || DEFAULT_MARKET;
         }
         switchMarket(initialMarket);
+        preloadSearchIndex();
     }
 
     function switchMarket(market) {
@@ -180,8 +216,11 @@
             if (market !== state.market || versionId !== state.currentVersion) return; // 已切走
             // 首次打开该市场时默认显示：URL # 指定的股票 > 该市场上次浏览的股票
             if (!state.currentCode) {
+                // 跨市场跳转的目标代码优先；其次 URL # 指定股票；再次该市场上次浏览
+                var pending = state.pendingCode; state.pendingCode = null;
                 var hashCode = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
-                var initial = (hashCode && marketOfCode(hashCode) === market) ? hashCode : recallLastCode(market);
+                var initial = pending
+                    || ((hashCode && marketOfCode(hashCode) === market) ? hashCode : recallLastCode(market));
                 var company = initial ? findCompany(initial) : null;
                 if (company) {
                     state.currentCode = company.code;
@@ -201,32 +240,47 @@
     // 搜索 / 联想
     // ------------------------------------------------------------------
 
+    // 全局搜索池：优先用跨市场索引，索引未就绪时回退到当前市场公司列表
+    function searchPool() {
+        return state.searchList.length ? state.searchList : state.companies;
+    }
+    function findByCode(code) {
+        var pool = searchPool();
+        for (var i = 0; i < pool.length; i++) {
+            if (pool[i].code === code) return pool[i];
+        }
+        return null;
+    }
+
     function findCompany(query) {
         query = query.trim().toUpperCase();
         if (!query) return null;
-        if (state.companyByCode[query]) return state.companyByCode[query];
+        var byCode = findByCode(query);
+        if (byCode) return byCode;
         if (/^\d+$/.test(query)) {
             var six = query.padStart(6, '0'), five = query.padStart(5, '0');
             var suffixes = [six + '.SH', six + '.SZ', six + '.BJ', five + '.HK'];
             for (var i = 0; i < suffixes.length; i++) {
-                if (state.companyByCode[suffixes[i]]) return state.companyByCode[suffixes[i]];
+                var hit = findByCode(suffixes[i]);
+                if (hit) return hit;
             }
         }
         var lower = query.toLowerCase();
-        var exact = state.companies.filter(function (c) { return c.name === query || c.py === lower; });
+        var exact = searchPool().filter(function (c) { return c.name === query || c.py === lower; });
         if (exact.length) return exact[0];
         var ranked = matchCompanies(query);
         return ranked.length ? ranked[0] : null;
     }
 
-    // 排序匹配：精确(代码/名称/拼音首字母) > 前缀 > 包含
+    // 排序匹配：精确(代码/名称/拼音首字母) > 前缀 > 包含。跨市场检索。
     function matchCompanies(query) {
         query = query.trim();
         if (!query) return [];
         var upper = query.toUpperCase(), lower = query.toLowerCase();
+        var pool = searchPool();
         var buckets = [[], [], []];
-        for (var i = 0; i < state.companies.length; i++) {
-            var c = state.companies[i];
+        for (var i = 0; i < pool.length; i++) {
+            var c = pool[i];
             var name = (c.name || '').toUpperCase();
             var py = c.py || '';
             var score;
@@ -248,6 +302,13 @@
 
     function selectCompany(company) {
         clearError();
+        var targetMarket = normalizeMarketKey(company);
+        // 跨市场选择：先切到目标市场，切换完成后由 switchVersion 消费 pendingCode
+        if (targetMarket !== state.market) {
+            state.pendingCode = company.code;
+            switchMarket(targetMarket);
+            return;
+        }
         state.currentCode = company.code;
         el.input.value = company.code;
         rememberLastCode(state.market, company.code);
@@ -263,7 +324,9 @@
         function render() {
             if (!matches.length) { close(); return; }
             listEl.innerHTML = matches.map(function (c, i) {
+                var mk = c.market === 'HK' ? '港' : 'A';
                 return '<div class="suggestion-item' + (i === active ? ' active' : '') + '" data-index="' + i + '">' +
+                    '<span class="s-market s-market-' + (c.market === 'HK' ? 'hk' : 'a') + '">' + mk + '</span>' +
                     '<span class="s-code">' + esc(c.code) + '</span>' +
                     '<span class="s-name">' + esc(c.name || '') + '</span>' +
                     (c.py ? '<span class="s-py">' + esc(c.py) + '</span>' : '') +

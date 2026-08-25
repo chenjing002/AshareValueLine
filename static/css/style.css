@@ -160,6 +160,20 @@ input[type="text"]::placeholder { color: #aab2bd; }
 .suggestion-item:hover,
 .suggestion-item.active { background: #eef4ff; }
 
+.suggestion-item .s-market {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+.suggestion-item .s-market-a { background: #d33; }
+.suggestion-item .s-market-hk { background: #2d7ef7; }
+
 .suggestion-item .s-code {
     font-family: 'Courier New', monospace;
     color: #7f8c8d;

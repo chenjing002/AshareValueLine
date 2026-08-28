@@ -1,4 +1,4 @@
-// My Value Line — 纯静态前端：直接读取本地版本化数据文件（file:// 可用，无需服务器）
+// Ashare Value Line — 纯静态前端：直接读取本地版本化数据文件（file:// 可用，无需服务器）
 
 (function () {
     'use strict';
@@ -6,11 +6,31 @@
     var INDICATOR_ORDER = [
         '营业收入', '利润总额', '销售毛利率', '归母净利润', 'ROE',
         '总资产', '总负债', '负债率', '账面价值', '流动资产', '流动负债',
-        '营运资本', '存货', '存货周转天数', '货币资金', '交易性金融资产', '长期借款', '经营现金净额', '分红', '员工总数'
+        '营运资本', '存货', '存货周转天数', '货币资金', '交易性金融资产', '长期借款', '经营现金净额', '分红', '总股本', '员工总数'
     ];
     var DAYS_INDICATORS = { '存货周转天数': true };
     var PERCENT_INDICATORS = { '销售毛利率': true, 'ROE': true, '负债率': true };
     var HISTORY_YEARS = 10;
+
+    // 币种 → 金额单位后缀。港股行情以港元计价，但财务报表按各公司记账本位币披露
+    // （约半数为人民币，其余港元 / 美元 / 新元等），因此金额表与行情需分别标注。
+    var CURRENCY_UNIT = {
+        '人民币元': '亿人民币', '人民币': '亿人民币',
+        '港元': '亿港元', '港币': '亿港元',
+        '美元': '亿美元', '新加坡元': '亿新元', '马来西亚林吉特': '亿林吉特',
+        '澳门元': '亿澳门元', '日本元': '亿日元', '欧元': '亿欧元',
+        '澳大利亚元': '亿澳元', '加拿大元': '亿加元', '泰国铢': '亿泰铢'
+    };
+    // 财务报表金额单位（跟随记账本位币；缺省/未知回退到通用「亿元」，兼容 A 股）
+    function finUnit(stock) {
+        var u = stock && stock.units;
+        return (u && CURRENCY_UNIT[u['财务币种']]) || '亿元';
+    }
+    // 行情金额单位（总市值 / 流通市值；港股恒为港元，A 股回退「亿元」）
+    function quoteUnit(stock) {
+        var u = stock && stock.units;
+        return (u && CURRENCY_UNIT[u['行情币种']]) || '亿元';
+    }
 
     var MARKETS = [
         { key: 'a_share', label: 'A股' },
@@ -455,9 +475,9 @@
             ['PE TTM', fmtPE(quote.pe_ttm, quote.pe_ttm_calc), true],
             ['PE 静', fmtPE(quote.pe, quote.pe_calc), false],
             ['PB', fmt(quote.pb, 1), false],
-            ['总市值', quote.total_mv_yi != null ? fmt(quote.total_mv_yi, 0) + '亿' : '--', true],
-            ['流通市值', quote.circ_mv_yi != null ? fmt(quote.circ_mv_yi, 0) + '亿' : '--', false],
-            ['总股本', quote.total_share_yi != null ? fmt(quote.total_share_yi) + '亿' : '--', false]
+            ['总市值', quote.total_mv_yi != null ? fmt(quote.total_mv_yi, 0) + quoteUnit(stock) : '--', true],
+            ['流通市值', quote.circ_mv_yi != null ? fmt(quote.circ_mv_yi, 0) + quoteUnit(stock) : '--', false],
+            ['总股本', quote.total_share_yi != null ? fmt(quote.total_share_yi) + '亿股' : '--', false]
         ] : [];
         return '<div class="card-header">' +
             '<div class="card-identity">' +
@@ -475,7 +495,7 @@
 
     function renderQuarterly(stock) {
         var qr = stock.quarterly_revenue;
-        var html = '<div class="panel-title">季度营收 <span class="panel-sub">单季 · 亿元</span></div>';
+        var html = '<div class="panel-title">季度营收 <span class="panel-sub">单季 · ' + finUnit(stock) + '</span></div>';
         if (!qr || !qr.years || !qr.years.length) {
             return html + '<div class="panel-empty">暂无季度营收数据</div>';
         }
@@ -553,7 +573,7 @@
             return '<button type="button" class="seg-btn' + (p[0] === trendSelection ? ' active' : '') +
                 '" data-period="' + p[0] + '">' + p[1] + '</button>';
         }).join('');
-        return '<div class="panel-title">同期趋势 <span class="panel-sub">累计 · 亿元</span>' +
+        return '<div class="panel-title">同期趋势 <span class="panel-sub">累计 · ' + finUnit(stock) + '</span>' +
             '<span class="seg-control">' + seg + '</span></div>' +
             '<div id="trendBody">' + renderTrendBody(stock, trendSelection) + '</div>';
     }
@@ -561,8 +581,14 @@
     function renderEV(stock) {
         var m = computeEV(stock);
         var html = '<div class="panel-title">EV指标 <span class="panel-sub">' +
-            (m ? '报告期 ' + esc(m.items['报告期'] || '-') + ' · 亿元' : '') + '</span></div>';
+            (m ? '报告期 ' + esc(m.items['报告期'] || '-') + ' · ' + finUnit(stock) : '') + '</span></div>';
         if (!m) return html + '<div class="panel-empty">缺少行情或资产负债表数据</div>';
+        // 港股行情币种（港元）与财务币种可能不同：EV = 港元市值 + 本位币负债 − 本位币现金，
+        // 币种不一致时该数值仅供参考，避免误读。
+        if (quoteUnit(stock) !== finUnit(stock)) {
+            html += '<div class="ev-currency-warn">⚠ 行情为' + quoteUnit(stock).slice(1) +
+                '、财务为' + finUnit(stock).slice(1) + '，EV 跨币种仅供参考</div>';
+        }
         var highlight = m.evEbit != null && m.evEbit > 0 && m.evEbit < 10;
         var i = m.items;
         html += '<div class="ev-rows">' +
@@ -599,7 +625,7 @@
             if (annual['员工总数'][years[0]] == null) annual['员工总数'][years[0]] = stock.employees;
         }
 
-        var html = '<div class="results-container"><table class="results-table"><thead><tr><th>指标（亿元 / %）</th>' +
+        var html = '<div class="results-container"><table class="results-table"><thead><tr><th>指标（' + finUnit(stock) + ' / %）</th>' +
             years.map(function (y) { return '<th>' + y + '</th>'; }).join('') + '</tr></thead><tbody>';
         INDICATOR_ORDER.forEach(function (indicator) {
             var series = annual[indicator];
@@ -673,7 +699,7 @@
         var html = '<div class="results-container balance-sheet-container">' +
             '<div class="table-section-title">资产负债表 <span class="panel-sub">' +
             (bs.comp_type_name ? esc(bs.comp_type_name) + ' · ' : '') +
-            '年报 · ' + (isPct ? '结构占比' : '亿元') + ' · 共' + bs.fields.length + '项</span>' +
+            '年报 · ' + (isPct ? '结构占比' : finUnit(stock)) + ' · 共' + bs.fields.length + '项</span>' +
             toggle + '</div>' +
             '<table class="results-table"><thead><tr><th>科目</th>' +
             years.map(function (y) { return '<th>' + y + '</th>'; }).join('') + '</tr></thead><tbody>';

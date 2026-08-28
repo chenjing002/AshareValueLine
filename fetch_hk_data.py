@@ -275,120 +275,283 @@ ANNUAL_INDICATORS = [
     Indicator("operating_cashflow", "经营现金净额", "54458", "HK_GE_CFS_NETOPCASHFLOW_DW"),
 ]
 
-BALANCE_INDICATORS = [
-    Indicator("money_cap", "现金及等价物", "54316", "HK_GE_BS_CASH_DW"),
-    Indicator("trad_asset", "交易性金融资产", "57750", "HKS_GE_BS_TRADINGFINASSETS_DW"),
-    Indicator("notes_receiv", "应收票据", "54322", "HK_GE_BS_BILLRECEIVABLE_DW"),
-    Indicator("accounts_receiv", "应收账款", "54352", "HK_GE_BS_ACCOUNTRECEIVABLE_DW"),
-    Indicator("prepayment", "预付款、按金及其他应收款", "54302", "HK_GE_BS_ADVANCEPAYMENT_DW"),
+# ---------------------------------------------------------------------------
+# 资产负债表科目：由港股 5030 指标目录（get-query-body-for-stock）按披露顺序
+# 全量枚举生成，覆盖各发行人族（一般企业 / 银行 / 保险 / 证券）实际披露的科目。
+# build_balance_sheet 只保留有数值的科目，因此不同公司展示的行数不同。
+# key 为跨市场稳定标识（total_assets 等衍生逻辑依赖它），label 取目录中文名。
+# ---------------------------------------------------------------------------
+GENERAL_BALANCE_INDICATORS = [
     Indicator("inventories", "存货", "54336", "HK_GE_BS_INBENTORY_DW"),
+    Indicator("dsproperty", "发展中及待售物业", "54354", "HK_GE_BS_DSPROPERTY_DW"),
+    Indicator("accounts_receiv", "应收账款", "54352", "HK_GE_BS_ACCOUNTRECEIVABLE_DW"),
+    Indicator("notes_receiv", "应收票据", "54322", "HK_GE_BS_BILLRECEIVABLE_DW"),
+    Indicator("relatedreceivable", "应收关联方款项", "54348", "HK_GE_BS_RELATEDRECEIVABLE_DW"),
+    Indicator("interestreceivable", "应收利息", "54330", "HK_GE_BS_INTERESTRECEIVABLE_DW"),
+    Indicator("prepayment", "预付款按金及其他应收款", "54302", "HK_GE_BS_ADVANCEPAYMENT_DW"),
+    Indicator("advancetax", "预缴及应收税项", "54318", "HK_GE_BS_ADVANCETAX_DW"),
+    Indicator("advancerent", "预付租金", "54298", "HK_GE_BS_ADVANCERENT_DW"),
+    Indicator("money_cap", "现金及等价物", "54316", "HK_GE_BS_CASH_DW"),
+    Indicator("shortdeposit", "短期存款", "54300", "HK_GE_BS_SHORTDEPOSIT_DW"),
+    Indicator("shortinvest", "短期投资", "54350", "HK_GE_BS_SHORTINVEST_DW"),
+    Indicator("trad_asset", "交易性金融资产", "57750", "HKS_GE_BS_TRADINGFINASSETS_DW"),
+    Indicator("limitasset", "受限制存款及现金", "57752", "HKS_GE_BS_LIMITASSET_DW"),
     Indicator("total_cur_assets", "流动资产合计", "54334", "HK_GE_BS_CURRENTASSETS_DW"),
-    Indicator("lt_eqt_invest", "联营公司权益", "54304", "HK_GE_BS_ASSOCIATEDEQUITY_DW"),
-    Indicator("invest_real_estate", "投资物业", "54342", "HK_GE_BS_INVESTPROPERTY_DW"),
-    Indicator("fix_assets", "物业、厂房及设备", "54320", "HK_GE_BS_PROPERTY_DW"),
+    Indicator("fix_assets", "物业厂房及设备", "54320", "HK_GE_BS_PROPERTY_DW"),
     Indicator("cip", "在建工程", "54296", "HK_GE_BS_CONSTRUINPROCESS_DW"),
+    Indicator("invest_real_estate", "投资物业", "54342", "HK_GE_BS_INVESTPROPERTY_DW"),
+    Indicator("advancepay", "预付款项", "54344", "HK_GE_BS_ADVANCEPAY_DW"),
+    Indicator("longreceivable", "长期应收款", "54326", "HK_GE_BS_LONGRECEIVABLE_DW"),
+    Indicator("lt_eqt_invest", "联营公司权益", "54304", "HK_GE_BS_ASSOCIATEDEQUITY_DW"),
+    Indicator("jointequity", "合营公司权益", "54324", "HK_GE_BS_JOINTEQUITY_DW"),
+    Indicator("timedeposit", "定期存款", "54338", "HK_GE_BS_TIMEDEPOSIT_DW"),
+    Indicator("longinvest", "长期投资", "54306", "HK_GE_BS_LONGINVEST_DW"),
+    Indicator("secuinvest", "证券投资", "54308", "HK_GE_BS_SECUINVEST_DW"),
+    Indicator("holdforsaleassets", "可供出售金融资产", "54310", "HK_GE_BS_HOLDFORSALEASSETS_DW"),
     Indicator("intan_assets", "无形资产", "54340", "HK_GE_BS_INTANGIBLEASSETS_DW"),
     Indicator("goodwill", "商誉", "54312", "HK_GE_BS_GOODWILL_DW"),
     Indicator("defer_tax_assets", "递延税项资产", "54314", "HK_GE_BS_DEFFEREDTAXASSETS_DW"),
     Indicator("total_nca", "非流动资产合计", "54346", "HK_GE_BS_NONCURRENTASSETS_DW"),
+    Indicator("totalassets_adrep", "资产特殊科目", "57754", "HKS_GE_BS_TOTALASSETS_ADREP_DW"),
     Indicator("total_assets", "总资产", "54328", "HK_GE_BS_TOTALASSETS_DW"),
-    Indicator("st_borr", "短期借款", "54386", "HK_GE_BS_SHORTTERMLOAN_DW"),
-    Indicator("notes_payable", "应付票据", "54388", "HK_GE_BS_NOTESPAYABLE_DW"),
     Indicator("acct_payable", "应付账款", "54398", "HK_GE_BS_ACCOUNTPAYABLE_DW"),
-    Indicator("adv_receipts", "预收款项", "54402", "HK_GE_BS_ADVANCERECEIPT_DW"),
-    Indicator("payroll_payable", "应付职工薪酬", "54400", "HK_GE_BS_SALARYPAYABLE_DW"),
+    Indicator("notes_payable", "应付票据", "54388", "HK_GE_BS_NOTESPAYABLE_DW"),
     Indicator("taxes_payable", "应付税项", "54414", "HK_GE_BS_TAXPAYABLE_DW"),
+    Indicator("divpayable", "应付股利", "54390", "HK_GE_BS_DIVPAYABLE_DW"),
+    Indicator("relatedpayable", "应付关连方款项", "54366", "HK_GE_BS_RELATEDPAYABLE_DW"),
     Indicator("oth_payable", "其他应付款及应计费用", "54372", "HK_GE_BS_OTHERPAYABLE_DW"),
+    Indicator("payroll_payable", "应付职工薪酬", "54400", "HK_GE_BS_SALARYPAYABLE_DW"),
+    Indicator("adv_receipts", "预收款项", "54402", "HK_GE_BS_ADVANCERECEIPT_DW"),
+    Indicator("st_borr", "短期借款", "54386", "HK_GE_BS_SHORTTERMLOAN_DW"),
+    Indicator("financialliability", "衍生金融负债", "54408", "HK_GE_BS_FINANCIALLIABILITY_DW"),
+    Indicator("bankloan", "银行贷款及透支", "54412", "HK_GE_BS_BANKLOAN_DW"),
+    Indicator("finleaseliability", "融资租赁负债", "54362", "HK_GE_BS_FINLEASELIABILITY_DW"),
+    Indicator("deferredrevenue", "递延收入", "54382", "HK_GE_BS_DEFERREDREVENUE_DW"),
     Indicator("total_cur_liab", "流动负债合计", "54394", "HK_GE_BS_CURRLIABILITY_DW"),
+    Indicator("netcurrliability", "净流动资产", "54378", "HK_GE_BS_NETCURRLIABILITY_DW"),
+    Indicator("tasubclia", "总资产减流动负债", "54364", "HK_GE_BS_TASUBCLIA_DW"),
     Indicator("lt_borr", "长期借款", "54410", "HK_GE_BS_LONGLOAN_DW"),
-    Indicator("bond_payable", "可转换票据及债券", "54396", "HK_GE_BS_TRANSBONDS_DW"),
     Indicator("lt_payable", "长期应付款", "54406", "HK_GE_BS_LONGTERMAP_DW"),
+    Indicator("finleaseliability_nc", "融资租赁负债（非流动）", "54442", "HK_GE_BS_FINLEASELIABILITY_NC_DW"),
     Indicator("defer_tax_liab", "递延税项负债", "54440", "HK_GE_BS_DEFERREDTAXLIABILITY_DW"),
+    Indicator("bond_payable", "可转换票据及债券", "54396", "HK_GE_BS_TRANSBONDS_DW"),
     Indicator("total_ncl", "非流动负债合计", "54370", "HK_GE_BS_NONCURRLIABILITY_DW"),
+    Indicator("noncurrliability_adrep", "负债特殊科目", "57748", "HKS_GE_BS_NONCURRLIABILITY_ADREP_DW"),
     Indicator("total_liab", "总负债", "54416", "HK_GE_BS_TOTALLIABILITY_DW"),
+    Indicator("tasubtl", "总资产减总负债", "54376", "HK_GE_BS_TASUBTL_DW"),
+    Indicator("teplusnclia", "总权益及非流动负债", "54356", "HK_GE_BS_TEPLUSNCLIA_DW"),
     Indicator("total_share", "股本", "54358", "HK_GE_BS_PAIDINCAPITAL_DW"),
+    Indicator("otherequityinstru", "其他权益工具", "54360", "HK_GE_BS_OTHEREQUITYINSTRU_DW"),
+    Indicator("premium", "股本溢价", "54384", "HK_GE_BS_PREMIUM_DW"),
     Indicator("cap_rese", "资本公积", "54428", "HK_GE_BS_CAPITALRESERVE_DW"),
     Indicator("undistr_porfit", "未分配利润", "54432", "HK_GE_BS_UNDISTRIBUTEDPROFIT_DW"),
+    Indicator("parent_equity", "股东权益", "54420", "HK_GE_BS_SEWITHOUTMI_DW"),
     Indicator("minority_int", "非控股权益", "54426", "HK_GE_BS_MINORITYEQUITY_DW"),
-    Indicator("parent_equity", "归属母公司股东权益", "54420", "HK_GE_BS_SEWITHOUTMI_DW"),
     Indicator("total_hldr_eqy_inc_min_int", "总权益", "54436", "HK_GE_BS_TOTALEQUITY_DW"),
     Indicator("total_liab_hldr_eqy", "总权益及总负债", "54424", "HK_GE_BS_LIABILITYEQUITY_DW"),
 ]
 
-ALL_INDICATORS = ANNUAL_INDICATORS + BALANCE_INDICATORS
+BANK_BALANCE_INDICATORS = [
+    Indicator("money_cap", "库存现金及短期资金", "53960", "HK_B_BS_CASHHOLDINGS_DW"),
+    Indicator("finorgdeposits", "存放同业及其他金融机构款项", "53958", "HK_B_BS_FINORGDEPOSITS_DW"),
+    Indicator("depositcard", "所持存款证", "53970", "HK_B_BS_DEPOSITCARD_DW"),
+    Indicator("owescertigovhk", "香港特区政府负债证明书", "53974", "HK_B_BS_OWESCERTIGOVHK_DW"),
+    Indicator("lendcapital", "拆出资金", "53972", "HK_B_BS_LENDCAPITAL_DW"),
+    Indicator("tradebill", "贸易票据", "53966", "HK_B_BS_TRADEBILL_DW"),
+    Indicator("interestreceivable", "应收利息", "53968", "HK_B_BS_INTERESTRECEIVABLE_DW"),
+    Indicator("investinrece", "应收款项类投资", "53964", "HK_B_BS_INVESTINRECE_DW"),
+    Indicator("loanotherpayment", "客户贷款及其他款项", "53976", "HK_B_BS_LOANOTHERPAYMENT_DW"),
+    Indicator("loanotherrece", "贷款及其他账项", "54002", "HK_B_BS_LOANOTHERRECE_DW"),
+    Indicator("holdforsaleassets", "可供出售金融资产", "54034", "HK_B_BS_HOLDFORSALEASSETS_DW"),
+    Indicator("holdtomatuinv", "持至到期投资", "54006", "HK_B_BS_HOLDTOMATUINV_DW"),
+    Indicator("assettosold", "待出售之资产", "54012", "HK_B_BS_ASSETTOSOLD_DW"),
+    Indicator("buysellback", "买入返售金融资产", "53988", "HK_B_BS_BUYSELLBACK_DW"),
+    Indicator("trad_asset", "交易性金融资产", "53992", "HK_B_BS_TRADINGASSETS_DW"),
+    Indicator("derifinassets", "衍生性金融资产", "53990", "HK_B_BS_DERIFINASSETS_DW"),
+    Indicator("secuinvest", "证券投资", "54018", "HK_B_BS_SECUINVEST_DW"),
+    Indicator("jointinv", "对合营企业的投资", "54030", "HK_B_BS_JOINTINV_DW"),
+    Indicator("controtedinv", "附属公司权益", "54004", "HKS_B_BS_CONTROTEDINV_DW"),
+    Indicator("lt_eqt_invest", "联营公司权益", "54000", "HK_B_BS_ASSOCIATEDINV_DW"),
+    Indicator("coedinv", "共同控制体权益", "54032", "HKS_B_BS_COEDINV_DW"),
+    Indicator("fix_assets", "固定资产", "54014", "HK_B_BS_FIXEDASSETS_DW"),
+    Indicator("invest_real_estate", "投资物业", "54020", "HK_B_BS_INVESTPROPERTY_DW"),
+    Indicator("taxasset", "即期税项资产", "57742", "HKS_B_BS_TAXASSET_DW"),
+    Indicator("intan_assets", "无形资产", "53978", "HK_B_BS_INTANGIBLEASSETS_DW"),
+    Indicator("goodwill", "商誉", "54008", "HK_B_BS_GOODWILL_DW"),
+    Indicator("defer_tax_assets", "递延税项资产", "54036", "HK_B_BS_DEFFEREDTAXASSETS_DW"),
+    Indicator("otherassets", "其他资产", "54010", "HKS_B_BS_OTHERASSETS_DW"),
+    Indicator("totalassets_adrep", "资产特殊科目", "53984", "HKS_B_BS_TOTALASSETS_ADREP_DW"),
+    Indicator("total_assets", "总资产", "54028", "HK_B_BS_TOTALASSETS_DW"),
+    Indicator("borcentralbank", "向中央银行借款", "54024", "HK_B_BS_BORCENTRALBANK_DW"),
+    Indicator("finorgdeposit", "银行同业及其他金融机构存款", "53982", "HK_B_BS_FINORGDEPOSIT_DW"),
+    Indicator("custdeposit", "客户存款", "53994", "HK_B_BS_CUSTDEPOSIT_DW"),
+    Indicator("issuedepositcard", "已发行存款证", "53986", "HK_B_BS_ISSUEDEPOSITCARD_DW"),
+    Indicator("issuedbond", "已发行债券", "53996", "HK_B_BS_ISSUEDBOND_DW"),
+    Indicator("suborddbit", "后偿负债", "53998", "HKS_B_BS_SUBORDDBIT_DW"),
+    Indicator("borrowcapital", "拆入资金", "54022", "HK_B_BS_BORROWCAPITAL_DW"),
+    Indicator("taxes_payable", "应交税项", "54026", "HK_B_BS_TAXPAYABLE_DW"),
+    Indicator("interestpayable", "应付利息", "54062", "HK_B_BS_INTERESTPAYABLE_DW"),
+    Indicator("payroll_payable", "应付职工薪酬", "54076", "HK_B_BS_SALARYPAYABLE_DW"),
+    Indicator("tradingfinli", "交易性金融负债", "54054", "HKS_B_BS_TRADINGFINLI_DW"),
+    Indicator("derifinliability", "衍生金融负债", "54070", "HK_B_BS_DERIFINLIABILITY_DW"),
+    Indicator("sellbuyback", "卖出回购金融资产款", "54086", "HK_B_BS_SELLBUYBACK_DW"),
+    Indicator("defer_tax_liab", "递延税项负债", "54064", "HK_B_BS_DEFERREDTAXLIAB_DW"),
+    Indicator("otherliability", "其他负债", "54044", "HKS_B_BS_OTHERLIABILITY_DW"),
+    Indicator("liability_adrep", "负债特殊科目", "54042", "HKS_B_BS_LIABILITY_ADREP_DW"),
+    Indicator("total_liab", "总负债", "54046", "HK_B_BS_TOTALLIABILITY_DW"),
+    Indicator("tasubtl", "总资产减总负债", "54050", "HK_B_BS_TASUBTL_DW"),
+    Indicator("total_share", "股本", "54048", "HK_B_BS_PAIDINCAPITAL_DW"),
+    Indicator("otherequityinstru", "其他权益工具", "54074", "HK_B_BS_OTHEREQUITYINSTRU_DW"),
+    Indicator("premium", "股本溢价", "54056", "HK_B_BS_PREMIUM_DW"),
+    Indicator("cap_rese", "资本公积", "54052", "HK_B_BS_CAPITALRESERVE_DW"),
+    Indicator("undistr_porfit", "未分配利润", "54060", "HK_B_BS_UNDISTRIBUTEDPROFIT_DW"),
+    Indicator("parent_equity", "股东权益", "54080", "HK_B_BS_SEWITHOUTMI_DW"),
+    Indicator("minority_int", "非控股权益", "54066", "HK_B_BS_MINORITYEQUITY_DW"),
+    Indicator("total_hldr_eqy_inc_min_int", "总权益", "54038", "HK_B_BS_TOTALEQUITY_DW"),
+    Indicator("total_liab_hldr_eqy", "总权益及总负债", "54058", "HK_B_BS_LIABILITYEQUITY_DW"),
+]
+
+INSURANCE_BALANCE_INDICATORS = [
+    Indicator("depositcard", "存款证", "53654", "HK_I_BS_DEPOSITCARD_DW"),
+    Indicator("timedeposit", "定期存款", "53656", "HK_I_BS_TIMEDEPOSIT_DW"),
+    Indicator("statdeposit", "法定存款", "53658", "HK_I_BS_STATDEPOSIT_DW"),
+    Indicator("money_cap", "现金及等价物", "53770", "HK_I_BS_CASH_DW"),
+    Indicator("reinsassets", "再保险资产", "53666", "HK_I_BS_REINSASSETS_DW"),
+    Indicator("investincrece", "应收投资收益", "34886", "HK_I_BS_INVESTINCRECE_DW"),
+    Indicator("insurrece", "应收保费", "53660", "HK_I_BS_INSURRECE_DW"),
+    Indicator("reinsurrece", "应收分保账款", "53662", "HK_I_BS_REINSURRECE_DW"),
+    Indicator("investinloanrece", "归入贷款及应收款的投资", "53664", "HK_I_BS_INVESTINLOANRECE_DW"),
+    Indicator("secuinvest", "证券投资", "53692", "HK_I_BS_SECUINVEST_DW"),
+    Indicator("holdforsaleassets", "可供出售金融资产", "53726", "HK_I_BS_HOLDFORSALEASSETS_DW"),
+    Indicator("goodwill", "商誉", "53696", "HKS_I_BS_GOODWILL_DW"),
+    Indicator("intan_assets", "无形资产", "53700", "HKS_I_BS_INTANGIBLEASSETS_DW"),
+    Indicator("buysellback", "买入返售证券", "53676", "HK_I_BS_BUYSELLBACK_DW"),
+    Indicator("lt_eqt_invest", "于联营企业和合营企业的投资", "53682", "HK_I_BS_ASSOCIATEDINV_DW"),
+    Indicator("holdtomatuinv", "持有至到期投资", "53678", "HK_I_BS_HOLDTOMATUINV_DW"),
+    Indicator("jointinv", "联营公司权益", "53712", "HK_I_BS_JOINTINV_DW"),
+    Indicator("coedequity", "共同控制体权益", "53724", "HKS_I_BS_COEDEQUITY_DW"),
+    Indicator("invest_real_estate", "投资物业", "53694", "HK_I_BS_INVESTPROPERTY_DW"),
+    Indicator("fix_assets", "物业厂房及设备", "53680", "HK_I_BS_PROPERTY_DW"),
+    Indicator("defer_tax_assets", "递延税项资产", "53728", "HK_I_BS_DEFFEREDTAXASSETS_DW"),
+    Indicator("loan", "贷款", "53772", "HK_I_BS_LOAN_DW"),
+    Indicator("insimpawnloan", "保户质押贷款", "53704", "HK_I_BS_INSIMPAWNLOAN_DW"),
+    Indicator("recovertax", "可收回税项", "34894", "HK_I_BS_RECOVERTAX_DW"),
+    Indicator("derifinassets", "衍生金融资产", "53670", "HKS_I_BS_DERIFINASSETS_DW"),
+    Indicator("otherassets", "其他资产", "53706", "HKS_I_BS_OTHERASSETS_DW"),
+    Indicator("totalassets_adrep", "资产特殊科目", "57764", "HKS_I_BS_TOTALASSETS_ADREP_DW"),
+    Indicator("total_assets", "总资产", "53708", "HK_I_BS_TOTALASSETS_DW"),
+    Indicator("investcontract", "投资合同负债", "53730", "HK_I_BS_INVESTCONTRACT_DW"),
+    Indicator("reinsprempayable", "应付再保险保费", "53710", "HK_I_BS_REINSPREMPAYABLE_DW"),
+    Indicator("insuraccpayable", "保险应付账款", "53720", "HK_I_BS_INSURACCPAYABLE_DW"),
+    Indicator("suborddebtil", "应付次级债", "53722", "HK_I_BS_SUBORDDEBTIL_DW"),
+    Indicator("divipayable", "应付保户红利", "53672", "HK_I_BS_DIVIPAYABLE_DW"),
+    Indicator("bfinpayable", "应付银行及其他金融机构款项", "53716", "HK_I_BS_BFINPAYABLE_DW"),
+    Indicator("taxes_payable", "应付税项", "53668", "HK_I_BS_TAXPAYABLE_DW"),
+    Indicator("acct_payable", "应付帐款", "53684", "HK_I_BS_ACCOUNTPAYABLE_DW"),
+    Indicator("payroll_payable", "应付职工薪酬", "53674", "HK_I_BS_SALARYPAYABLE_DW"),
+    Indicator("advanceinsur", "预收保费", "53698", "HK_I_BS_ADVANCEINSUR_DW"),
+    Indicator("sellbuyback", "卖出回购证券", "53688", "HK_I_BS_SELLBUYBACK_DW"),
+    Indicator("derifinliability", "衍生金融负债", "53690", "HK_I_BS_DERIFINLIABILITY_DW"),
+    Indicator("defer_tax_liab", "递延税项负债", "53718", "HK_I_BS_DEFERREDTAXLIAB_DW"),
+    Indicator("otherliability", "其他负债", "53760", "HKS_I_BS_OTHERLIABILITY_DW"),
+    Indicator("liability_adrep", "负债特殊科目", "53768", "HKS_I_BS_LIABILITY_ADREP_DW"),
+    Indicator("total_liab", "总负债", "53744", "HK_I_BS_TOTALLIABILITY_DW"),
+    Indicator("tasubtl", "总资产减总负债", "53762", "HK_I_BS_TASUBTL_DW"),
+    Indicator("total_share", "股本", "53742", "HK_I_BS_PAIDINCAPITAL_DW"),
+    Indicator("otherequityinstru", "其他权益工具", "53752", "HK_I_BS_OTHEREQUITYINSTRU_DW"),
+    Indicator("premium", "股本溢价", "53758", "HK_I_BS_PREMIUM_DW"),
+    Indicator("cap_rese", "资本公积", "53740", "HK_I_BS_CAPITALRESERVE_DW"),
+    Indicator("undistr_porfit", "未分配利润", "53734", "HK_I_BS_UNDISTRIBUTEDPROFIT_DW"),
+    Indicator("parent_equity", "股东权益", "53766", "HK_I_BS_SEWITHOUTMI_DW"),
+    Indicator("minority_int", "非控股权益", "53738", "HK_I_BS_MINORITYEQUITY_DW"),
+    Indicator("total_hldr_eqy_inc_min_int", "总权益", "53732", "HK_I_BS_TOTALEQUITY_DW"),
+    Indicator("total_liab_hldr_eqy", "总权益及总负债", "53750", "HK_I_BS_LIABILITYEQUITY_DW"),
+]
+
+SECURITIES_BALANCE_INDICATORS = [
+    Indicator("accounts_receiv", "应收账款及票据", "54642", "HKS_S_BS_ACOUTANDBILLREC_DW"),
+    Indicator("prepayment", "预付款项、按金及其他应收款项", "57778", "HKS_S_BS_ADVANCEPAYMENT_DW"),
+    Indicator("trad_asset", "交易性金融资产", "57780", "HKS_S_BS_TRADINGFINASSETS_DW"),
+    Indicator("customerdeposit", "客户存款", "57776", "HKS_S_BS_CustomerDeposit_DW"),
+    Indicator("inventories", "存货", "54674", "HKS_S_BS_INBENTORY_DW"),
+    Indicator("money_cap", "现金及现金等价物", "54640", "HKS_S_BS_CASH_DW"),
+    Indicator("total_cur_assets", "流动资产合计", "54658", "HKS_S_BS_CURRENTASSETS_DW"),
+    Indicator("lt_eqt_invest", "联营公司权益", "54646", "HKS_S_BS_ASSOCIATEDEQUITY_DW"),
+    Indicator("coequity", "共同控制体权益", "54684", "HKS_S_BS_COEQUITY_DW"),
+    Indicator("goodwill", "商誉", "54670", "HKS_S_BS_GOODWILL_DW"),
+    Indicator("intan_assets", "无形资产", "54668", "HKS_S_BS_INTANGIBLEASSETS_DW"),
+    Indicator("defer_tax_assets", "递延所得税资产", "54654", "HKS_S_BS_DEFFEREDTAXASSETS_DW"),
+    Indicator("total_nca", "非流动资产合计", "54676", "HKS_S_BS_NONCURRENTASSETS_DW"),
+    Indicator("tasubtl", "总资产减流动负债", "57782", "HKS_S_BS_TASUBTL_DW"),
+    Indicator("acoutandbillpay", "应付账款及票据", "54644", "HKS_S_BS_ACOUTANDBILLPAY_DW"),
+    Indicator("oherliability", "应计费用及其他应付款", "54680", "HKS_S_BS_OHERLIABILITY_DW"),
+    Indicator("financialliability", "衍生金融负债", "54664", "HKS_S_BS_FINANCIALLIABILITY_DW"),
+    Indicator("st_borr", "短期借款", "54678", "HKS_S_BS_SHORTTERMLOAN_DW"),
+    Indicator("total_cur_liab", "流动负债合计", "54672", "HKS_S_BS_CURRLIABILITY_DW"),
+    Indicator("lt_borr", "长期借款", "54652", "HKS_S_BS_LONGLOAN_DW"),
+    Indicator("defer_tax_liab", "递延所得税负债", "54650", "HKS_S_BS_DEFERREDTAXLIABILITY_DW"),
+    Indicator("total_ncl", "非流动负债合计", "54656", "HKS_S_BS_NONCURRLIABILITY_DW"),
+    Indicator("total_liab", "负债合计", "54682", "HKS_S_BS_TOTALLIABILITY_DW"),
+    Indicator("total_share", "股本", "54660", "HKS_S_BS_PAIDINCAPITAL_DW"),
+    Indicator("otherequityinstru", "其他权益工具", "57784", "HKS_S_BS_OTHEREQUITYINSTRU_DW"),
+    Indicator("premium", "股本溢价", "58740", "HKS_S_BS_PREMIUM_DW"),
+    Indicator("cap_rese", "资本公积", "58756", "HKS_S_BS_CAPITALRESERVE_DW"),
+    Indicator("undistr_porfit", "未分配利润", "58754", "HKS_S_BS_UNDISTRIBUTEDPROFIT_DW"),
+    Indicator("parent_equity", "股东权益", "58734", "HKS_S_BS_SEWITHOUTMI_DW"),
+    Indicator("minority_int", "非控股权益", "58742", "HKS_S_BS_MINORITYEQUITY_DW"),
+    Indicator("total_hldr_eqy_inc_min_int", "总权益", "58744", "HKS_S_BS_TOTALEQUITY_DW"),
+    Indicator("total_liab_hldr_eqy", "总权益及总负债", "58736", "HKS_S_BS_LIABILITYEQUITY_DW"),
+]
+
+# 向后兼容：build_balance_sheet 旧签名使用的通用别名。
+BALANCE_INDICATORS = GENERAL_BALANCE_INDICATORS
+ALL_INDICATORS = ANNUAL_INDICATORS + GENERAL_BALANCE_INDICATORS
 INDICATOR_BY_KEY = {item.key: item for item in ALL_INDICATORS}
 
-# Category 5030 separates raw statements by issuer type.  All families map to
-# the same canonical keys so the generated file format remains stable.
-BANK_INDICATORS = [
+# 各发行人族的利润表 / 现金流指标（口径不同，单独维护）。
+BANK_INCOME_INDICATORS = [
     Indicator("revenue", "营业收入", "57744", "HKS_B_IS_OPREVENUE_DW"),
     Indicator("total_profit", "利润总额", "54204", "HK_B_IS_TOTALPROFIT_DW"),
     Indicator("net_profit", "净利润", "54168", "HK_B_IS_NETPROFIT_DW"),
     Indicator("parent_net_profit", "归母净利润", "54208", "HKS_B_IS_NPMINORITY_DW"),
     Indicator("minority_profit", "少数股东损益", "54190", "HK_B_IS_MINORITYPROFIT_DW"),
     Indicator("operating_cashflow", "经营现金净额", "54152", "HK_B_CFS_NETOPCASHFLOW_DW"),
-    Indicator("money_cap", "现金及等价物", "53960", "HK_B_BS_CASHHOLDINGS_DW"),
-    Indicator("intan_assets", "无形资产", "53978", "HK_B_BS_INTANGIBLEASSETS_DW"),
-    Indicator("goodwill", "商誉", "54008", "HK_B_BS_GOODWILL_DW"),
-    Indicator("total_assets", "总资产", "54028", "HK_B_BS_TOTALASSETS_DW"),
-    Indicator("total_liab", "总负债", "54046", "HK_B_BS_TOTALLIABILITY_DW"),
-    Indicator("total_share", "股本", "54048", "HK_B_BS_PAIDINCAPITAL_DW"),
-    Indicator("minority_int", "非控股权益", "54066", "HK_B_BS_MINORITYEQUITY_DW"),
-    Indicator("parent_equity", "归属母公司股东权益", "54080", "HK_B_BS_SEWITHOUTMI_DW"),
-    Indicator("total_hldr_eqy_inc_min_int", "总权益", "54038", "HK_B_BS_TOTALEQUITY_DW"),
-    Indicator("total_liab_hldr_eqy", "总权益及总负债", "54058", "HK_B_BS_LIABILITYEQUITY_DW"),
 ]
-
-INSURANCE_INDICATORS = [
+INSURANCE_INCOME_INDICATORS = [
     Indicator("revenue", "营业收入", "53862", "HKS_I_IS_OPREVENUE_DW"),
     Indicator("total_profit", "利润总额", "53850", "HK_I_IS_TOTALPROFIT_DW"),
     Indicator("net_profit", "净利润", "53848", "HK_I_IS_NETPROFIT_DW"),
     Indicator("parent_net_profit", "归母净利润", "53868", "HKS_I_IS_NPMINORITY_DW"),
     Indicator("minority_profit", "少数股东损益", "53874", "HK_I_IS_MINORITYPROFIT_DW"),
     Indicator("operating_cashflow", "经营现金净额", "53776", "HK_I_CFS_NETOPCASHFLOW_DW"),
-    Indicator("money_cap", "现金及等价物", "53770", "HK_I_BS_CASH_DW"),
-    Indicator("goodwill", "商誉", "53696", "HKS_I_BS_GOODWILL_DW"),
-    Indicator("intan_assets", "无形资产", "53700", "HKS_I_BS_INTANGIBLEASSETS_DW"),
-    Indicator("total_assets", "总资产", "53708", "HK_I_BS_TOTALASSETS_DW"),
-    Indicator("total_liab", "总负债", "53744", "HK_I_BS_TOTALLIABILITY_DW"),
-    Indicator("total_share", "股本", "53742", "HK_I_BS_PAIDINCAPITAL_DW"),
-    Indicator("minority_int", "非控股权益", "53738", "HK_I_BS_MINORITYEQUITY_DW"),
-    Indicator("parent_equity", "归属母公司股东权益", "53766", "HK_I_BS_SEWITHOUTMI_DW"),
-    Indicator("total_hldr_eqy_inc_min_int", "总权益", "53732", "HK_I_BS_TOTALEQUITY_DW"),
-    Indicator("total_liab_hldr_eqy", "总权益及总负债", "53750", "HK_I_BS_LIABILITYEQUITY_DW"),
 ]
-
-SECURITIES_INDICATORS = [
+SECURITIES_INCOME_INDICATORS = [
     Indicator("revenue", "营业收入", "54704", "HKS_S_IS_REVENUE_DW"),
     Indicator("total_profit", "利润总额", "54734", "HKS_S_IS_TOTALPROFIT_DW"),
     Indicator("net_profit", "净利润", "54722", "HKS_S_IS_NETPROFIT_DW"),
     Indicator("parent_net_profit", "归母净利润", "54712", "HKS_S_IS_NPMINORITY_DW"),
-    Indicator("money_cap", "现金及等价物", "54640", "HKS_S_BS_CASH_DW"),
-    Indicator("trad_asset", "交易性金融资产", "57780", "HKS_S_BS_TRADINGFINASSETS_DW"),
-    Indicator("accounts_receiv", "应收账款及票据", "54642", "HKS_S_BS_ACOUTANDBILLREC_DW"),
-    Indicator("total_cur_assets", "流动资产合计", "54658", "HKS_S_BS_CURRENTASSETS_DW"),
-    Indicator("goodwill", "商誉", "54670", "HKS_S_BS_GOODWILL_DW"),
-    Indicator("intan_assets", "无形资产", "54668", "HKS_S_BS_INTANGIBLEASSETS_DW"),
-    Indicator("total_nca", "非流动资产合计", "54676", "HKS_S_BS_NONCURRENTASSETS_DW"),
-    Indicator("total_assets", "总资产", "58736", "HKS_S_BS_LIABILITYEQUITY_DW"),
-    Indicator("st_borr", "短期借款", "54678", "HKS_S_BS_SHORTTERMLOAN_DW"),
-    Indicator("total_cur_liab", "流动负债合计", "54672", "HKS_S_BS_CURRLIABILITY_DW"),
-    Indicator("lt_borr", "长期借款", "54652", "HKS_S_BS_LONGLOAN_DW"),
-    Indicator("total_ncl", "非流动负债合计", "54656", "HKS_S_BS_NONCURRLIABILITY_DW"),
-    Indicator("total_liab", "总负债", "54682", "HKS_S_BS_TOTALLIABILITY_DW"),
-    Indicator("total_share", "股本", "54660", "HKS_S_BS_PAIDINCAPITAL_DW"),
-    Indicator("minority_int", "非控股权益", "58742", "HKS_S_BS_MINORITYEQUITY_DW"),
-    Indicator("parent_equity", "归属母公司股东权益", "58734", "HKS_S_BS_SEWITHOUTMI_DW"),
-    Indicator("total_hldr_eqy_inc_min_int", "总权益", "58744", "HKS_S_BS_TOTALEQUITY_DW"),
-    Indicator("total_liab_hldr_eqy", "总权益及总负债", "58736", "HKS_S_BS_LIABILITYEQUITY_DW"),
 ]
 
+BANK_INDICATORS = BANK_INCOME_INDICATORS + BANK_BALANCE_INDICATORS
+INSURANCE_INDICATORS = INSURANCE_INCOME_INDICATORS + INSURANCE_BALANCE_INDICATORS
+SECURITIES_INDICATORS = SECURITIES_INCOME_INDICATORS + SECURITIES_BALANCE_INDICATORS
+
+# 抓取用：每族的全部指标（利润表 + 资产负债表）。
 FAMILY_INDICATORS = {
     "general": ALL_INDICATORS,
     "bank": BANK_INDICATORS,
     "insurance": INSURANCE_INDICATORS,
     "securities": SECURITIES_INDICATORS,
 }
+
+# 展示用：每族的资产负债表科目（按披露顺序），供 build_balance_sheet 动态生成。
+FAMILY_BALANCE_INDICATORS = {
+    "general": GENERAL_BALANCE_INDICATORS,
+    "bank": BANK_BALANCE_INDICATORS,
+    "insurance": INSURANCE_BALANCE_INDICATORS,
+    "securities": SECURITIES_BALANCE_INDICATORS,
+}
+
 
 # 单季度（非累计）营收指标，按发行人族区分；港股多数公司只披露中期/年度报表，
 # 无对应单季申报的报告期该指标返回 null（而非伪造差值），与前端季度表的空值语义一致。
@@ -592,14 +755,28 @@ def build_balance_sheet(by_date: dict[str, dict[str, float]], fiscal_end: str,
                         family: str = "general") -> dict | None:
     years = sorted({int(date[:4]) for date in by_date if date.endswith(f"-{fiscal_end[:2]}-{fiscal_end[2:]}")}, reverse=True)
     years = years[:HISTORY_YEARS]
+    indicators = FAMILY_BALANCE_INDICATORS.get(family, GENERAL_BALANCE_INDICATORS)
     fields, data = [], {}
-    for indicator in BALANCE_INDICATORS:
+    for indicator in indicators:
         series = annual_series(by_date, indicator.key, fiscal_end)
         if series:
             fields.append({"key": indicator.key, "label": indicator.label})
             data[indicator.key] = series
     if not fields:
         return None
+    # 证券族 5030 目录不单列「总资产」，但披露流动/非流动资产合计；此处用衍生值
+    # （complete_derived_financials 已按合计相加填入 by_date）补一行，保证资产/负债
+    # 分区在前端能正确切分，且百分比基数可用。
+    if not any(f["key"] == "total_assets" for f in fields):
+        derived_assets = annual_series(by_date, "total_assets", fiscal_end)
+        if derived_assets:
+            insert_at = len(fields)
+            for i, f in enumerate(fields):
+                if f["key"] == "total_nca":
+                    insert_at = i + 1
+                    break
+            fields.insert(insert_at, {"key": "total_assets", "label": "总资产"})
+            data["total_assets"] = derived_assets
     family_names = {
         "general": "一般企业", "bank": "银行", "insurance": "保险",
         "securities": "证券",
@@ -641,6 +818,7 @@ def build_stock(entry: dict, quote_row: dict | None, by_date: dict[str, dict[str
         "货币资金": annual_series(by_date, "money_cap", fiscal_end),
         "交易性金融资产": annual_series(by_date, "trad_asset", fiscal_end),
         "长期借款": annual_series(by_date, "lt_borr", fiscal_end),
+        "总股本": annual_series(by_date, "total_share", fiscal_end),
     })
     annual = {label: series for label, series in annual.items() if series}
 

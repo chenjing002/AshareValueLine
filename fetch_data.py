@@ -305,7 +305,7 @@ def build_quarterly_revenue(income_df: pd.DataFrame) -> dict:
 # 资产负债表：按报表顺序的完整字段清单（Tushare 默认返回集 + 新准则字段）
 BS_META_FIELDS = ["ts_code", "ann_date", "f_ann_date", "end_date", "report_type", "comp_type", "end_type", "update_flag"]
 BS_LABELS = {
-    "total_share": "期末总股本", "cap_rese": "资本公积金", "undistr_porfit": "未分配利润",
+    "total_share": "期末总股本(亿股)", "cap_rese": "资本公积金", "undistr_porfit": "未分配利润",
     "surplus_rese": "盈余公积金", "special_rese": "专项储备", "money_cap": "货币资金",
     "trad_asset": "交易性金融资产", "notes_receiv": "应收票据", "accounts_receiv": "应收账款",
     "oth_receiv": "其他应收款", "prepayment": "预付款项", "div_receiv": "应收股利",
@@ -711,6 +711,7 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
         "交易性金融资产": annual_series(balance, "trad_asset"),
         "长期借款": annual_series(balance, "lt_borr"),
         "经营现金净额": annual_series(cashflow, "n_cashflow_act"),
+        "总股本": annual_series(balance, "total_share"),  # 资产负债表总股本单位为股 -> 亿股
         "分红": dividends,
     })
 

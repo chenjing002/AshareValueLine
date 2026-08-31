@@ -803,14 +803,20 @@
     });
 
     // 左右方向键切换上一只 / 下一只股票（按当前版本公司列表顺序，循环）
+    // 左右方向键在“同一行业分组”内切换上/下一家公司（保持列表顺序，循环）
     function navigate(delta) {
         if (!state.companies.length || !state.currentVersion) return;
+        var current = state.companyByCode[state.currentCode];
+        var industry = current ? (current.industry || '') : '';
+        // 同行业子列表（行业为空的公司自成一组）
+        var group = state.companies.filter(function (c) { return (c.industry || '') === industry; });
+        if (!group.length) group = state.companies;
         var index = -1;
-        for (var i = 0; i < state.companies.length; i++) {
-            if (state.companies[i].code === state.currentCode) { index = i; break; }
+        for (var i = 0; i < group.length; i++) {
+            if (group[i].code === state.currentCode) { index = i; break; }
         }
-        var next = index === -1 ? 0 : (index + delta + state.companies.length) % state.companies.length;
-        selectCompany(state.companies[next]);
+        var next = index === -1 ? 0 : (index + delta + group.length) % group.length;
+        selectCompany(group[next]);
     }
 
     // ------------------------------------------------------------------

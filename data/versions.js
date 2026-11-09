@@ -1,6 +1,16 @@
 window.VL_VERSIONS = {
  "a_share": [
   {
+   "version": "20261108_174253",
+   "created_at": "2026-11-08 17:42:53",
+   "updated_at": "2026-11-08 19:26:19",
+   "a_count": 5499,
+   "hk_count": 0,
+   "note": "全量数据",
+   "trade_date_a": "20261106",
+   "trade_date_hk": null
+  },
+  {
    "version": "20260827_181849",
    "created_at": "2026-08-27 20:06:41",
    "updated_at": "2026-08-27 20:06:41",

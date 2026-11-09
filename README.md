@@ -88,6 +88,9 @@ http_headers = { Authorization = "你的认证信息" }
 # 中断后续传（跳过已完成的公司）
 ./venv/bin/python fetch_data.py --full --resume 20260823_143000
 
+# 仅刷新行情：沿用最新版本的财务数据，只更新股价 / PE / 市值（约 10 次请求，数秒完成）
+./venv/bin/python fetch_data.py --quotes-only
+
 # 先验证腾讯控股的港股行情、10 年财务和资产负债表
 ./venv/bin/python fetch_hk_data.py --test 00700
 
@@ -101,6 +104,9 @@ http_headers = { Authorization = "你的认证信息" }
 - 每次运行 `--test` / `--full`（不带 `--resume`）都会创建一个新的版本目录，
   旧版本数据完整保留，可在网页的版本下拉框中随时切换。
 - 全局默认限速 280 次/分钟（低于 Tushare 约 400 次/分钟的限制）。
+- 全量抓取约 2.7 万次请求、100 分钟，只在出了新财报后（4/30 年报与一季报、8/31 半年报、
+  10/31 三季报之后）才需要；两个报告季之间用 `--quotes-only` 刷新行情即可。它会生成一个
+  新版本（备注「仅刷新行情」），亏损股的自算 PE 按市值比例换算；新上市公司需下次 `--full` 才会收录。
 - 港股失败项写入版本目录的 `hk_fetch_failures.txt`；没有完整港股财报的证券
   不会用 A 股数据补齐，也不会写成成功文件。
 

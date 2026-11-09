@@ -52,6 +52,8 @@
         companies: [],          // 当前版本公司列表
         companyByCode: {},
         currentCode: null,
+        view: null,             // 'home'（低估值筛选首页）| 'stock'（单股卡片）
+        screens: {},            // 筛选数据缓存 { 'market/version': payload }
         pendingCode: null,      // 跨市场跳转时暂存的目标代码，切换市场后由 switchVersion 消费
         // 全局搜索索引：跨 A 股 / 港股统一检索。按市场存各自最新版本的公司列表。
         searchByMarket: {},     // { market: { version, companies } }
@@ -75,6 +77,7 @@
     }
 
     var el = {
+        brand: document.getElementById('brand'),
         marketSwitch: document.getElementById('marketSwitch'),
         versionSelect: document.getElementById('versionSelect'),
         input: document.getElementById('stockCodeInput'),
@@ -110,6 +113,13 @@
         if ((stock.market === 'HK' ? 'hk' : 'a_share') !== state.market) return;
         renderStock(stock);
     };
+    window.VL_registerScreen = function (payload) {
+        if (!payload || !payload.rows) return;
+        state.screens[payload.market + '/' + payload.version] = payload;
+        if (state.view === 'home' && payload.market === state.market && payload.version === state.currentVersion) {
+            renderHome();
+        }
+    };
 
     function loadScript(src, onError) {
         var tag = document.createElement('script');
@@ -138,6 +148,16 @@
         loadScript(marketDataDir(market) + versionId + '/companies.js', function () {
             if (market === state.market && versionId === state.currentVersion) {
                 showError('无法加载版本 ' + versionId + ' 的公司列表（companies.js 缺失）');
+            }
+        });
+    }
+
+    function loadScreen(market, versionId) {
+        if (state.screens[market + '/' + versionId]) { renderHome(); return; }
+        loadScript(marketDataDir(market) + versionId + '/screen.js', function () {
+            if (state.view === 'home' && market === state.market && versionId === state.currentVersion) {
+                el.container.innerHTML = '';
+                showError('版本 ' + versionId + ' 缺少筛选数据 screen.js（运行 python build_screen.py 生成）');
             }
         });
     }
@@ -171,15 +191,44 @@
         try { return localStorage.getItem('vl_market'); } catch (e) { return null; }
     }
 
+    // ------------------------------------------------------------------
+    // 路由：URL # 为空 → 低估值筛选首页；#代码 → 该股卡片（支持浏览器前进/后退）
+    // ------------------------------------------------------------------
+
+    function currentHashCode() {
+        return location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
+    }
+    function homeUrl() { return location.pathname + location.search; }
+
+    // 从首页进入个股时新增历史记录（后退可回首页）；个股之间切换只替换，避免历史堆积
+    function setHash(code) {
+        if (currentHashCode() === code) return;
+        history[state.view === 'home' ? 'pushState' : 'replaceState'](null, '', '#' + encodeURIComponent(code));
+    }
+
+    // 首页列表链接 / 浏览器前进后退改变了 #：按 # 同步视图（幂等，hashchange 与 popstate 可能先后触发）
+    function syncFromHash() {
+        var code = currentHashCode();
+        if (!code) {
+            if (state.view !== 'home') showHome();
+            return;
+        }
+        if (state.view === 'stock' && code === state.currentCode) return;
+        var company = findCompany(code);
+        if (company) selectCompany(company, { fromHash: true });
+    }
+
     function initMarketSwitcher() {
         el.marketSwitch.addEventListener('click', function (e) {
             var btn = e.target.closest('.seg-btn');
             if (!btn) return;
+            // 点市场按钮即进入该市场首页
+            if (currentHashCode()) history.pushState(null, '', homeUrl());
             switchMarket(btn.dataset.market);
         });
 
         // 初始市场：URL # 指定股票的市场 > 上次记忆的市场 > 默认 A 股
-        var hashCode = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
+        var hashCode = currentHashCode();
         var initialMarket = (hashCode && marketOfCode(hashCode)) || recallLastMarket() || DEFAULT_MARKET;
         if (!state.versionsByMarket[initialMarket] || !state.versionsByMarket[initialMarket].length) {
             initialMarket = MARKETS.filter(function (m) {
@@ -234,25 +283,18 @@
         el.versionSelect.value = versionId;
         loadCompanies(market, versionId, function () {
             if (market !== state.market || versionId !== state.currentVersion) return; // 已切走
-            // 首次打开该市场时默认显示：URL # 指定的股票 > 该市场上次浏览的股票
+            // 首次打开该市场：跨市场跳转的目标代码 > URL # 指定的本市场股票 > 低估值筛选首页
             if (!state.currentCode) {
-                // 跨市场跳转的目标代码优先；其次 URL # 指定股票；再次该市场上次浏览
                 var pending = state.pendingCode; state.pendingCode = null;
-                var hashCode = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : null;
-                var initial = pending
-                    || ((hashCode && marketOfCode(hashCode) === market) ? hashCode : recallLastCode(market));
+                var hashCode = currentHashCode();
+                var initial = pending || ((hashCode && marketOfCode(hashCode) === market) ? hashCode : null);
                 var company = initial ? findCompany(initial) : null;
-                if (company) {
-                    state.currentCode = company.code;
-                    el.input.value = company.code;
-                    rememberLastCode(market, company.code);
-                } else if (state.companies.length) {
-                    // 无 URL # / 历史记录时，默认展示第一家公司，避免首页空白
-                    state.currentCode = state.companies[0].code;
-                    el.input.value = state.companies[0].code;
-                }
+                if (!company) { showHome(); return; }
+                state.currentCode = company.code;
+                el.input.value = company.code;
             }
-            if (state.currentCode) loadStock(market, versionId, state.currentCode);
+            state.view = 'stock';
+            loadStock(market, versionId, state.currentCode);
         });
     }
 
@@ -313,15 +355,10 @@
         return buckets[0].concat(buckets[1], buckets[2]).slice(0, 12);
     }
 
-    function rememberLastCode(market, code) {
-        try { localStorage.setItem('vl_last_code_' + market, code); } catch (e) { /* file:// 下个别浏览器禁用存储 */ }
-    }
-    function recallLastCode(market) {
-        try { return localStorage.getItem('vl_last_code_' + market); } catch (e) { return null; }
-    }
-
-    function selectCompany(company) {
+    // opts.fromHash：由 # 变化触发（# 已是目标代码，不再改写历史）
+    function selectCompany(company, opts) {
         clearError();
+        if (!(opts && opts.fromHash)) setHash(company.code);
         var targetMarket = normalizeMarketKey(company);
         // 跨市场选择：先切到目标市场，切换完成后由 switchVersion 消费 pendingCode
         if (targetMarket !== state.market) {
@@ -329,9 +366,9 @@
             switchMarket(targetMarket);
             return;
         }
+        state.view = 'stock';
         state.currentCode = company.code;
         el.input.value = company.code;
-        rememberLastCode(state.market, company.code);
         loadStock(state.market, state.currentVersion, company.code);
     }
 
@@ -751,6 +788,98 @@
             renderBalanceSheet(stock);
     }
 
+    // ------------------------------------------------------------------
+    // 首页：低 PE / 低 EV/EBIT 筛选列表（数据来自版本目录 screen.js）
+    // ------------------------------------------------------------------
+
+    var SCREEN_MAX = 10; // 两张列表的上限：0 < PE TTM < 10、0 < EV/EBIT < 10
+
+    function inScreen(v) { return v != null && v > 0 && v < SCREEN_MAX; }
+
+    function showHome() {
+        if (currentHashCode()) history.replaceState(null, '', homeUrl()); // 如 # 指向不存在的代码
+        state.view = 'home';
+        state.currentCode = null;
+        currentStock = null;
+        el.input.value = '';
+        clearError();
+        if (!state.currentVersion) return;
+        el.container.innerHTML = '<div class="panel-empty home-loading">加载筛选数据…</div>';
+        loadScreen(state.market, state.currentVersion);
+    }
+
+    function renderScreenTable(rows, sortKey, opts) {
+        if (!rows.length) return '<div class="panel-empty">暂无满足条件的公司</div>';
+        var otherKey = sortKey === 'pe_ttm' ? 'ev_ebit' : 'pe_ttm';
+        var html = '<div class="screen-scroll"><table class="screen-table"><thead><tr>' +
+            '<th class="rank">#</th><th class="name">公司</th>' +
+            (opts.hasIndustry ? '<th class="industry">行业</th>' : '') +
+            '<th>PE TTM</th><th>EV/EBIT</th><th>市值 <span class="unit">' + opts.mvUnit + '</span></th>' +
+            '</tr></thead><tbody>';
+        rows.forEach(function (r, i) {
+            var cells = {
+                // 两位小数：避免 9.96 之类四舍五入显示成 10.0
+                pe_ttm: r.pe_ttm == null ? '<span class="no-data">--</span>' : fmt(r.pe_ttm) + (r.pe_calc ? '*' : ''),
+                ev_ebit: r.ev_ebit == null || r.financial ? '<span class="no-data">--</span>' : fmt(r.ev_ebit)
+            };
+            if (r.fx_mismatch && cells.ev_ebit.indexOf('no-data') === -1) {
+                cells.ev_ebit = '<span class="fx-warn" title="行情与财报币种不同，EV/EBIT 跨币种仅供参考">⚠</span>' + cells.ev_ebit;
+            }
+            // 另一指标也 < 10（双低）时标红
+            var otherHit = inScreen(r[otherKey]) && !(otherKey === 'ev_ebit' && r.financial);
+            var cls = function (key) {
+                return key === sortKey ? 'sort-col' : (key === otherKey && otherHit ? 'hit' : '');
+            };
+            html += '<tr>' +
+                '<td class="rank">' + (i + 1) + '</td>' +
+                '<td class="name"><a href="#' + encodeURIComponent(r.code) + '">' + esc(r.name) + '</a>' +
+                '<span class="screen-code">' + esc(r.code) + '</span></td>' +
+                (opts.hasIndustry ? '<td class="industry">' + esc(r.industry || '') + '</td>' : '') +
+                '<td class="' + cls('pe_ttm') + '">' + cells.pe_ttm + '</td>' +
+                '<td class="' + cls('ev_ebit') + '">' + cells.ev_ebit + '</td>' +
+                '<td>' + (r.mv == null ? '<span class="no-data">--</span>' : fmt(r.mv, 0)) + '</td>' +
+                '</tr>';
+        });
+        return html + '</tbody></table></div>';
+    }
+
+    function renderHome() {
+        var screen = state.screens[state.market + '/' + state.currentVersion];
+        if (!screen) return;
+        var rows = screen.rows;
+        var byKey = function (key) { return function (a, b) { return a[key] - b[key]; }; };
+        var peList = rows.filter(function (r) { return inScreen(r.pe_ttm); }).sort(byKey('pe_ttm'));
+        // 银行 / 保险 / 证券不适用 EV/EBIT，不进入该列表
+        var evList = rows.filter(function (r) { return !r.financial && inScreen(r.ev_ebit); }).sort(byKey('ev_ebit'));
+        var finExcluded = rows.filter(function (r) { return r.financial && inScreen(r.ev_ebit); }).length;
+        var both = peList.filter(function (r) { return !r.financial && inScreen(r.ev_ebit); }).length;
+        var opts = {
+            hasIndustry: rows.some(function (r) { return r.industry; }),
+            mvUnit: state.market === 'hk' ? '亿港元' : '亿元'
+        };
+        var td = screen.trade_date ? String(screen.trade_date) : '';
+        var tradeDate = td.length === 8 ? td.slice(0, 4) + '-' + td.slice(4, 6) + '-' + td.slice(6) : td;
+        var market = MARKETS.filter(function (m) { return m.key === state.market; })[0];
+
+        el.container.innerHTML =
+            '<div class="home-head">' +
+            '<span class="home-title">' + esc(market ? market.label : '') + ' 低估值筛选</span>' +
+            '<span class="panel-sub">' + (tradeDate ? '行情 ' + tradeDate + ' · ' : '') + rows.length + ' 家参与 · ' +
+            '双低 <b class="hit">' + both + '</b> 家（另一指标同样 &lt; ' + SCREEN_MAX + ' 时标红）</span>' +
+            '</div>' +
+            '<div class="home-grid">' +
+            '<div class="screen-card">' +
+            '<div class="panel-title">低 PE <span class="panel-sub">0 &lt; PE TTM &lt; ' + SCREEN_MAX + ' · ' +
+            peList.length + ' 家 · * 为按财报自算</span></div>' +
+            renderScreenTable(peList, 'pe_ttm', opts) + '</div>' +
+            '<div class="screen-card">' +
+            '<div class="panel-title">低 EV/EBIT <span class="panel-sub">0 &lt; EV/EBIT &lt; ' + SCREEN_MAX + ' · ' +
+            evList.length + ' 家' + (finExcluded ? ' · 已排除银行/保险/证券 ' + finExcluded + ' 家' : '') +
+            '</span></div>' +
+            renderScreenTable(evList, 'ev_ebit', opts) + '</div>' +
+            '</div>';
+    }
+
     // 同期趋势报告期切换（事件委托，重渲染面板内容即可）
     el.container.addEventListener('click', function (e) {
         var btn = e.target.closest('.seg-btn');
@@ -805,7 +934,7 @@
     // 左右方向键切换上一只 / 下一只股票（按当前版本公司列表顺序，循环）
     // 左右方向键在“同一行业分组”内切换上/下一家公司（保持列表顺序，循环）
     function navigate(delta) {
-        if (!state.companies.length || !state.currentVersion) return;
+        if (state.view !== 'stock' || !state.companies.length || !state.currentVersion) return;
         var current = state.companyByCode[state.currentCode];
         var industry = current ? (current.industry || '') : '';
         // 同行业子列表（行业为空的公司自成一组）
@@ -851,6 +980,15 @@
 
     el.modalBackdrop.addEventListener('click', closeModal);
     el.versionSelect.addEventListener('change', function () { switchVersion(this.value); });
+
+    // Logo 返回首页（低估值筛选）；从个股返回时新增历史记录，后退可回到该股
+    el.brand.addEventListener('click', function () {
+        if (state.view === 'home') return;
+        if (currentHashCode()) history.pushState(null, '', homeUrl());
+        showHome();
+    });
+    window.addEventListener('hashchange', syncFromHash);
+    window.addEventListener('popstate', syncFromHash);
 
     document.addEventListener('keydown', function (e) {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {

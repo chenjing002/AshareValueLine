@@ -36,6 +36,8 @@ body {
 }
 
 .brand svg { display: block; }
+.brand { cursor: pointer; }
+.brand:hover svg rect { fill: #2563eb; }
 
 .search-buttons {
     display: flex;
@@ -708,6 +710,121 @@ tr.temp-header-row th {
 }
 
 /* ------------------------------------------------------------------ */
+/* 首页：低 PE / 低 EV/EBIT 筛选列表                                     */
+/* ------------------------------------------------------------------ */
+
+.home-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin: 0 2px 8px;
+}
+
+.home-title {
+    font-size: 15px;
+    font-weight: 650;
+    color: #1e293b;
+}
+
+.home-head .panel-sub { margin-left: 0; font-size: 12px; }
+.home-head b.hit { color: #e5484d; font-weight: 650; }
+.home-loading { padding: 16px 4px; }
+
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.screen-card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #ecf0f1;
+    padding: 8px 0 0;
+    min-width: 0;
+}
+
+.screen-card > .panel-title { padding: 0 14px; }
+.screen-card > .panel-empty { padding: 8px 14px 12px; }
+
+/* 列表区独立滚动，表头吸顶；高度随视口，留出顶部工具栏与标题 */
+.screen-scroll {
+    max-height: calc(100vh - 150px);
+    overflow: auto;
+    border-top: 1px solid #eef1f4;
+}
+
+.screen-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.screen-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8f9fa;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 5px 10px;
+    text-align: right;
+    border-bottom: 1px solid #e9ecef;
+    white-space: nowrap;
+}
+
+.screen-table td {
+    padding: 4px 10px;
+    text-align: right;
+    border-bottom: 1px solid #f5f7f9;
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.screen-table th.rank, .screen-table td.rank {
+    width: 1%;
+    padding-left: 14px;
+    padding-right: 4px;
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.screen-table th.name, .screen-table td.name,
+.screen-table th.industry, .screen-table td.industry { text-align: left; }
+
+.screen-table td.name a {
+    color: #1e293b;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.screen-table td.name a:hover { color: #2563eb; text-decoration: underline; }
+
+.screen-code {
+    margin-left: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.screen-table td.industry {
+    color: #64748b;
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.screen-table th .unit { font-weight: 400; color: #94a3b8; }
+.screen-table td.sort-col { font-weight: 650; color: #1e293b; }
+.screen-table td.hit { color: #e5484d; font-weight: 600; }
+.screen-table tbody tr:hover td { background-color: rgba(250, 204, 21, 0.22); }
+.fx-warn { color: #d97706; margin-right: 3px; cursor: help; }
+
+/* ------------------------------------------------------------------ */
 /* 响应式                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -722,6 +839,8 @@ tr.temp-header-row th {
 }
 
 @media (max-width: 900px) {
+    .home-grid { grid-template-columns: 1fr; }
+    .screen-scroll { max-height: 70vh; }
     .card-body, .card-body.has-trend { grid-template-columns: 1fr; }
     .ev-panel, .trend-panel {
         border-left: none;

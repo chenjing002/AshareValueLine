@@ -37,6 +37,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from build_screen import build_screen
+
 try:
     from pypinyin import Style, lazy_pinyin
 except ImportError:  # pragma: no cover - optional search enhancement
@@ -1186,6 +1188,7 @@ def finalize_version(version_id: str, version_dir: Path, companies: list[dict], 
         "trade_date_hk": datetime.now().strftime("%Y%m%d"),
     }
     (version_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    build_screen("hk", version_dir)  # 首页低 PE / 低 EV/EBIT 筛选数据
     rebuild_versions_index()
     print(f"[完成] 版本 {version_id}: 港股 {len(companies)} 家")
 

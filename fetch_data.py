@@ -12,8 +12,12 @@
     data/versions.js                                  版本索引（按市场分组）
     data/versions/a_share/<版本号>/manifest.json      版本元信息
     data/versions/a_share/<版本号>/companies.js       公司列表（搜索用）
-    data/versions/a_share/<版本号>/stocks/<代码>.js   单只股票全部数据
+    data/versions/a_share/<版本号>/stocks/<代码>.js   单只股票全部数据（前端读取）
+    data/versions/a_share/<版本号>/raw/<代码>.json    去重后原始报表（跨版本增量复用，前端不读）
     data/versions/hk/<版本号>/...                     港股（由 fetch_hk_data.py 写入）
+
+增量抓取：构建新版本时复用上一版本 raw/ 原始数据，仅对出了新报告期（vip 补丁探知）
+或新股的公司重新按股票查询，其余沿用历史、只刷新全市场行情快照，避免重复请求历史区间。
 """
 
 import argparse
@@ -30,6 +34,8 @@ from pathlib import Path
 import unicodedata
 
 import pandas as pd
+
+from build_screen import build_screen
 
 try:
     from pypinyin import lazy_pinyin, Style
@@ -510,15 +516,17 @@ def build_balance_sheet(balance_df: pd.DataFrame) -> dict | None:
     }
 
 
-def fetch_dividends(client: TushareClient, ts_code: str, quote: dict | None) -> dict:
+DIVIDEND_FIELDS = "ts_code,end_date,div_proc,cash_div_tax,base_share,ex_date"
+
+
+def compute_dividends(df: pd.DataFrame, quote: dict | None) -> dict:
     """
     年度现金分红总额（亿元）。按分红所属年度(end_date)归组：
     同一年度的年报分红 + 中期/特别分红合并；只统计已实施(div_proc=实施)的记录。
+    df 为 dividend 接口原始数据（可复用上一版本缓存，避免重复请求）。
     """
-    df = client.query("dividend", ts_code=ts_code,
-                      fields="ts_code,end_date,div_proc,cash_div_tax,base_share,ex_date")
     result: dict = {}
-    if df.empty:
+    if df is None or df.empty:
         return result
     df = df[df["div_proc"] == "实施"].drop_duplicates(subset=["end_date", "ex_date"])
     # base_share 缺失时退回当前总股本（亿股 -> 万股）
@@ -660,11 +668,8 @@ def apply_pe_fallback(quote: dict, income_df: pd.DataFrame, indicators: dict):
             quote["pe_ttm_calc"] = True
 
 
-def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
-                  bulk: dict, overlays: dict) -> dict:
-    start_date = f"{datetime.now().year - HISTORY_YEARS}0101"
-    end_date = datetime.now().strftime("%Y%m%d")
-
+def query_reports(client: TushareClient, ts_code: str, start_date: str, end_date: str):
+    """按股票拉取利润表/资产负债表/现金流量表/财务指标（去重后原始数据）。"""
     income = dedup_reports(client.query(
         "income", ts_code=ts_code, start_date=start_date, end_date=end_date,
         fields="ts_code,end_date,report_type,update_flag,revenue,oper_cost,total_profit,n_income_attr_p"))
@@ -677,19 +682,132 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
     fina = dedup_reports(client.query(
         "fina_indicator", ts_code=ts_code, start_date=start_date, end_date=end_date,
         fields="ts_code,end_date,roe,grossprofit_margin"), has_report_type=False)
+    return income, balance, cashflow, fina
 
-    # 用最新报告期补丁修正按股票接口的滞后（如最新半年报）
+
+def guard_empty_reports(ts_code, income, balance, cashflow, fina):
+    """空返回守卫。
+
+    该代理在高负载时会对按股票查询返回 HTTP 200 但 0 行（静默空返回）。若某张报表
+    历史被拉空、而其它报表证明该股确有多年财报，则判定为接口限流空返回并抛错——
+    使其计入失败、可用 --resume 重试，避免把残缺历史静默写入版本
+    （曾导致 600791 只剩最新一期、丢失全部历史与现金流量表）。"""
+    counts = {
+        # 未盈利/未有收入的公司（如科创板 -U）营收为空但利润行存在，任一利润表科目有值即算
+        "利润表": max(len(annual_series(income, col))
+                     for col in ("revenue", "total_profit", "n_income_attr_p")),
+        "资产负债表": len(annual_series(balance, "total_assets")),
+        "现金流量表": len(annual_series(cashflow, "n_cashflow_act")),
+        "财务指标": len(annual_series(fina, "roe", scale=1)),
+    }
+    evidence = max(counts.values())
+    if evidence >= 2:  # 至少一张报表有 ≥2 年年报 -> 该股确有历史
+        missing = [name for name, count in counts.items() if count == 0]
+        if missing:
+            raise RuntimeError(
+                f"{ts_code} 历史{'/'.join(missing)}空返回（其它报表有 {evidence} 年数据），"
+                f"疑似接口限流空返回，判为失败（--resume 可重试）")
+
+
+# ---------------------------------------------------------------------------
+# 原始数据缓存（跨版本增量复用）
+# 单只股票去重后的原始报表行按版本存于 raw/<代码>.json。构建新版本时，若 vip 补丁
+# 显示没有更晚的报告期（未出新报），则直接复用上一版本原始数据、跳过 5 次按股票查询，
+# 大幅减少请求数；只有新股或出现更晚报告期（如新年报）时才重新全量拉取。行情快照
+# 每次都刷新（全市场一次性拉取，成本极低）。
+# ---------------------------------------------------------------------------
+
+def _df_to_records(df):
+    if df is None or df.empty:
+        return []
+    return json.loads(df.to_json(orient="records"))  # to_json 负责 NaN->null 及 numpy 类型
+
+
+def _records_to_df(records):
+    return pd.DataFrame(records) if records else pd.DataFrame()
+
+
+def _max_end_date(*dfs):
+    dates = []
+    for df in dfs:
+        if df is not None and not df.empty and "end_date" in df.columns:
+            dates.extend(str(x) for x in df["end_date"])
+    return max(dates) if dates else ""
+
+
+def _trim_reports(df, min_year):
+    """裁掉过老的报告期，避免原始缓存随年份无限增长。"""
+    if df is None or df.empty or "end_date" not in df.columns:
+        return df
+    years = pd.to_numeric(df["end_date"].astype(str).str[:4], errors="coerce")
+    return df[years >= min_year]
+
+
+def raw_file(version_dir: Path, code: str) -> Path:
+    return version_dir / "raw" / f"{code}.json"
+
+
+def load_raw(version_dir, code):
+    if version_dir is None:
+        return None
+    path = raw_file(version_dir, code)
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def write_raw(version_dir: Path, code: str, raw: dict):
+    path = raw_file(version_dir, code)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
+def overlay_latest_period(overlays, ts_code):
+    """vip 补丁中该股最新报告期（YYYYMMDD），无则 None。"""
+    periods = []
+    for key in ("income", "balance"):
+        rows = overlays.get(key, {}).get(ts_code)
+        if rows:
+            periods.extend(rows.keys())
+    return max(periods) if periods else None
+
+
+def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
+                  bulk: dict, overlays: dict, prev_raw: dict | None = None):
+    end_date = datetime.now().strftime("%Y%m%d")
+    full_start = f"{datetime.now().year - HISTORY_YEARS}0101"
+    quote = dict(bulk["quotes"][ts_code]) if ts_code in bulk["quotes"] else None
+
+    ov_latest = overlay_latest_period(overlays, ts_code)
+    prev_as_of = prev_raw.get("as_of") if prev_raw else None
+    reused = bool(prev_as_of) and bool(ov_latest) and ov_latest <= prev_as_of
+
+    if reused:
+        # 上一版本已含最新报告期（未出新报）：复用原始数据，跳过按股票查询
+        income = _records_to_df(prev_raw.get("income"))
+        balance = _records_to_df(prev_raw.get("balance"))
+        cashflow = _records_to_df(prev_raw.get("cashflow"))
+        fina = _records_to_df(prev_raw.get("fina"))
+        dividend_df = _records_to_df(prev_raw.get("dividend"))
+    else:
+        # 新股或出现更晚报告期：全量拉取历史，并做空返回守卫
+        income, balance, cashflow, fina = query_reports(client, ts_code, full_start, end_date)
+        guard_empty_reports(ts_code, income, balance, cashflow, fina)
+        # 分红为可选数据：接口偶发失败不应导致整只股票抓取失败
+        try:
+            dividend_df = client.query("dividend", ts_code=ts_code, fields=DIVIDEND_FIELDS)
+        except Exception as e:
+            dividend_df = pd.DataFrame()
+            print(f"  [警告] dividend({ts_code}) 获取失败: {str(e)[:100]}")
+
+    # 用最新报告期补丁修正按股票接口的滞后（如最新半年报）；复用路径下也据此并入最新更正披露
     income = merge_overlay(income, overlays["income"], ts_code)
     balance = merge_overlay(balance, overlays["balance"], ts_code)
 
-    quote = dict(bulk["quotes"][ts_code]) if ts_code in bulk["quotes"] else None
-
-    # 分红为可选数据：接口偶发失败不应导致整只股票抓取失败
-    try:
-        dividends = fetch_dividends(client, ts_code, quote)
-    except Exception as e:
-        dividends = {}
-        print(f"  [警告] dividend({ts_code}) 获取失败: {str(e)[:100]}")
+    dividends = compute_dividends(dividend_df, quote)
     # 只保留已出年报年份的分红，避免因当年中期分红出现只有分红一行的年份列
     revenue_years = set(annual_series(income, "revenue"))
     if revenue_years:
@@ -762,7 +880,7 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
     if quote:
         apply_pe_fallback(quote, income, indicators)
 
-    return {
+    stock = {
         "code": ts_code,
         "name": name,
         "industry": industry,
@@ -776,6 +894,18 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
         "balance_sheet": build_balance_sheet(balance),
         "units": {"金额": "亿元", "销售毛利率": "%", "ROE": "%"},
     }
+
+    # 持久化去重后的原始数据（并入 vip 补丁后），供下一版本增量复用
+    min_year = datetime.now().year - HISTORY_YEARS - 1
+    raw = {
+        "income": _df_to_records(_trim_reports(income, min_year)),
+        "balance": _df_to_records(_trim_reports(balance, min_year)),
+        "cashflow": _df_to_records(_trim_reports(cashflow, min_year)),
+        "fina": _df_to_records(_trim_reports(fina, min_year)),
+        "dividend": _df_to_records(dividend_df),
+        "as_of": _max_end_date(income, balance),
+    }
+    return stock, raw, reused
 
 # ---------------------------------------------------------------------------
 # 版本化存储
@@ -809,6 +939,7 @@ def finalize_version(version_id: str, version_dir: Path, companies: list, meta: 
     }
     (version_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    build_screen("a_share", version_dir)  # 首页低 PE / 低 EV/EBIT 筛选数据
 
     # 重建 data/versions.js（按市场扫描各自版本目录的 manifest，互不混用）
     index = {}
@@ -830,6 +961,17 @@ def finalize_version(version_id: str, version_dir: Path, companies: list, meta: 
 # ---------------------------------------------------------------------------
 # 主流程
 # ---------------------------------------------------------------------------
+
+def find_prev_version_dir(version_id: str):
+    """最近一个（早于本版本、且带原始缓存 raw/ 的）A 股版本目录，用于增量复用。"""
+    if not VERSIONS_DIR.exists():
+        return None
+    candidates = [
+        d for d in VERSIONS_DIR.iterdir()
+        if d.is_dir() and d.name < version_id and (d / "raw").is_dir()
+    ]
+    return max(candidates, key=lambda p: p.name) if candidates else None
+
 
 def load_company_list():
     companies = []
@@ -906,14 +1048,29 @@ def run(args):
     if skipped:
         print(f"[续传] 已存在 {skipped} 家，剩余 {len(pending)} 家")
 
+    # 上一版本（含原始缓存）用于增量复用：未出新报的股票直接沿用历史，跳过按股票查询
+    prev_version_dir = find_prev_version_dir(version_id)
+    if prev_version_dir:
+        print(f"[增量] 复用基线版本 {prev_version_dir.name}（未出新报的股票将跳过按股票查询）")
+    else:
+        print("[增量] 无可复用的基线版本，全部全量拉取")
+
     done, failed = skipped, []
+    stats = {"reused": 0, "fetched": 0}
+    stats_lock = threading.Lock()
     started = time.monotonic()
 
     def process(entry):
-        stock = fetch_a_stock(client, entry["code"], entry["name"], entry.get("industry"), bulk_a, overlays)
+        code = entry["code"]
+        prev_raw = load_raw(prev_version_dir, code)
+        stock, raw_data, reused = fetch_a_stock(
+            client, code, entry["name"], entry.get("industry"), bulk_a, overlays, prev_raw)
         stock["version"] = version_id
         stock["fetched_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         write_stock_file(version_dir, stock)
+        write_raw(version_dir, code, raw_data)
+        with stats_lock:
+            stats["reused" if reused else "fetched"] += 1
 
     # 并发抓取：网络延迟是主要瓶颈，多线程共享限速器仍安全低于 400 次/分钟
     workers = max(1, int(os.getenv("FETCH_WORKERS", "8")))
@@ -932,7 +1089,8 @@ def run(args):
             if index % 50 == 0 or index == len(pending):
                 elapsed = time.monotonic() - started
                 print(f"[进度] {skipped + index}/{len(targets)} "
-                      f"(成功 {done}, 失败 {len(failed)}, 请求 {client.request_count} 次, 用时 {elapsed / 60:.1f} 分钟)")
+                      f"(成功 {done}, 失败 {len(failed)}, 复用 {stats['reused']}, 新拉 {stats['fetched']}, "
+                      f"请求 {client.request_count} 次, 用时 {elapsed / 60:.1f} 分钟)")
         pool.shutdown(wait=True)
     except KeyboardInterrupt:
         pool.shutdown(wait=False, cancel_futures=True)
@@ -952,6 +1110,7 @@ def run(args):
         "created_at": created_at, "note": note,
         "trade_date_a": bulk_a.get("trade_date"),
     })
+    print(f"[增量] 本次复用 {stats['reused']} 家、新拉 {stats['fetched']} 家，累计请求 {client.request_count} 次")
     if failed:
         print(f"[警告] {len(failed)} 家失败: {', '.join(failed[:20])}{' ...' if len(failed) > 20 else ''}")
         print(f"        可运行 python fetch_data.py --full --resume {version_id} 重试失败部分")

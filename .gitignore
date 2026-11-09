@@ -15,3 +15,6 @@ __pycache__/
 .claude/
 .DS_Store
 
+
+# fetch_data.py 增量抓取的原始报表缓存（每版本约 1GB，仅本地复用，前端不读）
+data/versions/*/*/raw/

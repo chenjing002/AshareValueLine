@@ -7,6 +7,7 @@
 ```
 fetch_data.py                       A 股数据抓取/更新脚本（Tushare）
 fetch_hk_data.py                    港股数据抓取/更新脚本（XHCJ MCP）
+build_screen.py                     汇总版本内全部股票的 PE TTM / EV/EBIT，生成首页筛选数据 screen.js
 docs/hk_mcp_tool_schema.json        港股 MCP 工具与 IndicatorExps 补充 Schema
 generate_value_line_pdf.py          单只/多只股票 Value Line 风格 PDF 生成器
 batch_generate_all.py               批量为版本内全部 A 股生成 PDF（逐只容错）
@@ -19,6 +20,7 @@ data/
     │   └── 20260823_143000/        一个数据版本（每次抓取新建，永不覆盖旧版本）
     │       ├── manifest.json       版本元信息
     │       ├── companies.js        公司列表（搜索/联想用）
+    │       ├── screen.js           首页低 PE / 低 EV/EBIT 筛选数据（build_screen.py 生成）
     │       └── stocks/
     │           └── 600519.SH.js    单只股票全部数据
     └── hk/                         港股版本目录（fetch_hk_data.py 专用，写读均不涉及 A 股）
@@ -150,6 +152,13 @@ http_headers = { Authorization = "你的认证信息" }
 
 直接双击打开 `index.html`（file:// 协议即可，无需服务器）。
 
+- 首页为**低估值筛选**：左侧低 PE 列表（0 < PE TTM < 10），右侧低 EV/EBIT 列表
+  （0 < EV/EBIT < 10，口径同个股卡片；银行/保险/证券不适用 EV/EBIT，不进入该列表），
+  两项同时 < 10 的「双低」公司标红。港股行情与财报币种不同时 EV/EBIT 标 ⚠ 仅供参考。
+  点击公司进入个股卡片（URL 为 `#代码`，浏览器后退回到首页）；点左上角 Logo 或市场按钮回首页
+- 筛选数据在 `--test` / `--full` 完成时自动生成；为已有版本补建：
+  `./venv/bin/python build_screen.py`（两个市场最新版本）或
+  `./venv/bin/python build_screen.py --market a_share 20260827_181849`
 - 右上角下拉框切换**数据版本**
 - 搜索框支持代码（600519）或名称（茅台）联想搜索
 - 展示内容：实时行情快照、最近 3 年单季营收、EV 指标（含计算细项）、

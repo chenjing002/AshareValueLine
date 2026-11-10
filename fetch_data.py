@@ -99,7 +99,7 @@ class TushareClient:
         token = os.getenv("TUSHARE_TOKEN", "")
         if not token:
             sys.exit("错误：未设置 TUSHARE_TOKEN（环境变量或项目 .env 文件）")
-        api_url = os.getenv("TUSHARE_API_URL", "http://lianghua.nanyangqiankun.top")
+        api_url = os.getenv("TUSHARE_API_URL", "https://tuaremax.top")
         self.pro = ts.pro_api(token)
         self.pro._DataApi__token = token
         self.pro._DataApi__http_url = api_url

@@ -20,6 +20,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -552,8 +553,18 @@ def fetch_dividends(client: TushareClient, ts_code: str, quote: dict | None) -> 
     return result
 
 
+def normalize_website(value) -> str | None:
+    """stock_company.website 多为不带协议的 www.xxx.com，偶有多个网址并列：取第一个并补 http://。"""
+    if value is None or pd.isna(value):
+        return None
+    first = re.split(r"[\s;,；，、]+", str(value).strip())[0]
+    if not re.search(r"[\w-]\.[A-Za-z]{2,}", first):
+        return None
+    return first if re.match(r"https?://", first, re.I) else f"http://{first}"
+
+
 def fetch_a_bulk(client: TushareClient) -> dict:
-    """一次性抓取全市场快照：行情指标 + 员工数。"""
+    """一次性抓取全市场快照：行情指标 + 员工数 + 公司官网。"""
     print("[A股] 抓取全市场快照 ...")
     # 找最近交易日（用上证指数附近任一股票的近期日线）
     end = datetime.now().strftime("%Y%m%d")
@@ -584,18 +595,22 @@ def fetch_a_bulk(client: TushareClient) -> dict:
             "total_share_yi": _round(row.get("total_share") / 1e4 if pd.notna(row.get("total_share")) else None, 4),  # 万股 -> 亿股
         }
 
-    employees = {}
+    employees, websites = {}, {}
     for exchange in ("SSE", "SZSE", "BSE"):
         try:
-            company_df = client.query("stock_company", exchange=exchange, fields="ts_code,employees")
+            company_df = client.query("stock_company", exchange=exchange, fields="ts_code,employees,website")
             for _, row in company_df.iterrows():
                 if pd.notna(row.get("employees")):
                     employees[row["ts_code"]] = int(row["employees"])
+                website = normalize_website(row.get("website"))
+                if website:
+                    websites[row["ts_code"]] = website
         except Exception as e:
             print(f"  [警告] stock_company({exchange}) 获取失败: {e}")
 
-    print(f"[A股] 快照完成: 交易日 {trade_date}, 行情 {len(quotes)} 只, 员工数 {len(employees)} 家")
-    return {"trade_date": trade_date, "quotes": quotes, "employees": employees}
+    print(f"[A股] 快照完成: 交易日 {trade_date}, 行情 {len(quotes)} 只, "
+          f"员工数 {len(employees)} 家, 官网 {len(websites)} 家")
+    return {"trade_date": trade_date, "quotes": quotes, "employees": employees, "websites": websites}
 
 
 def build_period_trend(income_df: pd.DataFrame, balance_df: pd.DataFrame) -> dict:
@@ -811,6 +826,7 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
         "market": "A",
         "quote": quote,
         "employees": bulk["employees"].get(ts_code),
+        "website": bulk["websites"].get(ts_code),
         "annual": indicators,
         "quarterly_revenue": build_quarterly_revenue(income),
         "period_trend": build_period_trend(income, balance),
@@ -970,6 +986,7 @@ def run_quotes_only():
         no_quote += new_quote is None
         stock["quote"] = refresh_quote(stock.get("quote"), new_quote)
         stock["employees"] = bulk_a["employees"].get(code, stock.get("employees"))
+        stock["website"] = bulk_a["websites"].get(code, stock.get("website"))
         stock["version"] = version_id
         stock["quote_refreshed_at"] = created_at  # fetched_at 保留为财务数据抓取时间
         write_stock_file(version_dir, stock)

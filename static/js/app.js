@@ -516,9 +516,14 @@
             ['流通市值', quote.circ_mv_yi != null ? fmt(quote.circ_mv_yi, 0) + quoteUnit(stock) : '--', false],
             ['总股本', quote.total_share_yi != null ? fmt(quote.total_share_yi) + '亿股' : '--', false]
         ] : [];
+        // 公司名链接到官网（A 股来自 Tushare stock_company.website；只放行 http(s)，挡掉 javascript: 等协议）
+        var website = /^https?:\/\//i.test(stock.website || '') ? stock.website : null;
+        var nameHtml = website
+            ? '<a class="stock-name" href="' + esc(website) + '" target="_blank" rel="noopener noreferrer" title="公司官网 · ' + esc(website) + '">' + esc(stock.name) + '</a>'
+            : '<span class="stock-name">' + esc(stock.name) + '</span>';
         return '<div class="card-header">' +
             '<div class="card-identity">' +
-            '<span class="stock-name">' + esc(stock.name) + '</span>' +
+            nameHtml +
             '<span class="stock-code">' + esc(stock.code) + '</span>' +
             (stock.industry ? '<span class="stock-tag">' + esc(stock.industry) + '</span>' : '') +
             '</div>' +

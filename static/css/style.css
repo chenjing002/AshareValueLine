@@ -288,6 +288,16 @@ input[type="text"]::placeholder { color: #aab2bd; }
     color: #1e293b;
 }
 
+a.stock-name {
+    text-decoration: none;
+    border-bottom: 1px dashed #cbd5e1;
+}
+
+a.stock-name:hover {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+}
+
 .stock-code {
     font-size: 12px;
     font-weight: 600;

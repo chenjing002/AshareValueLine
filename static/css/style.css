@@ -710,6 +710,89 @@ tr.temp-header-row th {
 
 .no-data { color: #c3cad3; }
 
+/* 主营业务构成：按产品 / 按地区两栏并排 */
+.mb-container { margin-top: 10px; }
+.mb-container .table-section-title { flex-wrap: wrap; }
+.mb-container .seg-btn { white-space: nowrap; }
+
+.mb-controls {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.mb-controls .seg-control { float: none; }
+
+.mb-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mb-panel { padding: 8px 14px 10px; min-width: 0; overflow-x: auto; }
+.mb-panel + .mb-panel { border-left: 1px solid #f0f2f5; }
+
+/* 100% 构成条：段间 2px 留白，两端圆角 */
+.mb-bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 2px 0 8px;
+}
+
+.mb-bar span { flex-basis: 0; min-width: 2px; cursor: help; }
+
+.mb-table td:first-child {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mb-swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 6px;
+    background: transparent;
+}
+
+.mb-share {
+    display: block;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-top: 1px;
+    color: #94a3b8;
+}
+
+.mb-toggle {
+    all: unset;
+    cursor: pointer;
+}
+
+.mb-toggle:hover { color: #2563eb; }
+.mb-toggle:focus-visible { outline: 2px solid #93c5fd; border-radius: 3px; }
+
+.mb-caret {
+    display: inline-block;
+    width: 11px;
+    font-size: 10px;
+    color: #94a3b8;
+}
+
+.mb-table tr.mb-child td { font-size: 12px; color: #64748b; }
+.mb-table tr.mb-child td:first-child,
+.mb-table tr.mb-adjust td:first-child { font-weight: 400; color: #94a3b8; }
+
+.mb-table tr.mb-total-row td {
+    font-weight: 650;
+    color: #1e293b;
+    border-top: 1px solid #e2e8f0;
+}
+
 .stock-info {
     background: white;
     padding: 12px;
@@ -852,6 +935,8 @@ tr.temp-header-row th {
     .home-grid { grid-template-columns: 1fr; }
     .screen-scroll { max-height: 70vh; }
     .card-body, .card-body.has-trend { grid-template-columns: 1fr; }
+    .mb-grid { grid-template-columns: 1fr; }
+    .mb-panel + .mb-panel { border-left: none; border-top: 1px solid #f0f2f5; }
     .ev-panel, .trend-panel {
         border-left: none;
         border-top: 1px solid #f0f2f5;

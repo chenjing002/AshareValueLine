@@ -8,6 +8,7 @@
     python fetch_data.py --full                           # 全量抓取 A 股
     python fetch_data.py --full --resume 20260823_120000 # 续传中断的版本
     python fetch_data.py --quotes-only                    # 仅刷新行情（财务沿用最新版本，数秒完成）
+    python fetch_data.py --mainbz-only                    # 仅补抓主营业务构成（其余沿用最新版本）
 
 数据布局（静态站点直接读取，无需服务器；A 股与港股版本目录严格分离）：
     data/versions.js                                  版本索引（按市场分组）
@@ -553,6 +554,61 @@ def fetch_dividends(client: TushareClient, ts_code: str, quote: dict | None) -> 
     return result
 
 
+# 主营业务构成（fina_mainbz）：P 按产品 / D 按地区。该代理每只股票只存最新约 150 行
+# （三种分类合计，按报告期倒序），按类型、报告期、offset 查询都取不到更早的数据，
+# 因此不带 type 一次拉取即可拿到全部可得数据。
+MAINBZ_TYPES = {"P": "产品", "D": "地区"}   # 类型 -> 该类型合计行的项目名
+MAINBZ_ROW_CAP = 150
+MAINBZ_PERIODS = ("1231", "0630")          # 只保留年报与中报（季报披露极少）
+
+
+def fetch_main_business(client: TushareClient, ts_code: str) -> dict | None:
+    """主营业务构成（亿元）：{类型: {报告期: {"total": 主营收入合计, "items": [[项目, 收入, 毛利], ...]}}}。
+    项目名中的「：」表示层级（如 商业及工业解决方案：楼宇科技）；「合计特别调整」为与合计的差额。"""
+    df = client.query("fina_mainbz", ts_code=ts_code,
+                      fields="ts_code,end_date,bz_item,bz_code,bz_sales,bz_profit,bz_cost,curr_type")
+    if df.empty:
+        return None
+    df = df.assign(end_date=df["end_date"].astype(str))
+    if len(df) >= MAINBZ_ROW_CAP:
+        # 返回被截断：最早的报告期可能只剩部分行，整期丢弃
+        df = df[df["end_date"] != df["end_date"].min()]
+    cutoff = f"{datetime.now().year - HISTORY_YEARS}0101"
+    result = {}
+    for bz_code, total_name in MAINBZ_TYPES.items():
+        periods = {}
+        sub = df[(df["bz_code"] == bz_code) & (df["end_date"] >= cutoff) &
+                 (df["end_date"].str[4:].isin(MAINBZ_PERIODS))]
+        for end_date, rows in sub.groupby("end_date"):
+            total, items, seen = None, [], set()
+            for rec in rows.to_dict("records"):
+                name = str(rec["bz_item"] or "").strip()
+                sales = _round(rec["bz_sales"] / 1e8 if pd.notna(rec["bz_sales"]) else None)
+                if not name or sales is None or name in seen:
+                    continue
+                seen.add(name)
+                if name == total_name:
+                    total = sales
+                    continue
+                profit = rec["bz_profit"]
+                if pd.isna(profit) and pd.notna(rec["bz_cost"]):
+                    profit = rec["bz_sales"] - rec["bz_cost"]
+                items.append([name, sales, _round(profit / 1e8 if pd.notna(profit) else None)])
+            if not items:
+                continue
+            if total is None:  # 少数报告期缺合计行：用一级项目之和
+                total = _round(sum(i[1] for i in items if "：" not in i[0]))
+            periods[end_date] = {"total": total, "items": items}
+        if periods:
+            result[bz_code] = periods
+    if not result:
+        return None
+    currencies = set(df["curr_type"].dropna().astype(str)) - {"CNY"}
+    if currencies:
+        result["curr"] = sorted(currencies)[0]
+    return result
+
+
 def normalize_website(value) -> str | None:
     """stock_company.website 多为不带协议的 www.xxx.com，偶有多个网址并列：取第一个并补 http://。"""
     if value is None or pd.isna(value):
@@ -819,6 +875,15 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
     if quote:
         apply_pe_fallback(quote, income, indicators)
 
+    # 主营构成为可选数据：接口失败只告警，不影响整只股票
+    try:
+        main_business = fetch_main_business(client, ts_code)
+    except ServiceNotice:
+        raise
+    except Exception as e:
+        main_business = None
+        print(f"  [警告] fina_mainbz({ts_code}) 获取失败: {str(e)[:100]}")
+
     return {
         "code": ts_code,
         "name": name,
@@ -832,6 +897,7 @@ def fetch_a_stock(client: TushareClient, ts_code: str, name: str, industry: str,
         "period_trend": build_period_trend(income, balance),
         "ev_items": ev_items,
         "balance_sheet": build_balance_sheet(balance),
+        "main_business": main_business,
         "units": {"金额": "亿元", "销售毛利率": "%", "ROE": "%"},
     }
 
@@ -936,10 +1002,13 @@ def version_companies(companies: list, stocks_dir: Path) -> list:
 # 新上市公司不在基线版本中，需下次 --full 才会收录。
 # ---------------------------------------------------------------------------
 
-def latest_base_version_dir():
-    """最新的非测试 A 股版本，作为仅刷新行情时沿用的财务基线。"""
+def latest_base_version_dir(before: str | None = None):
+    """最新的非测试 A 股版本，作为仅刷新行情 / 补抓主营构成时沿用的基线；
+    before 限定早于该版本号（续传时找回当初的基线）。"""
     candidates = []
     for manifest_path in VERSIONS_DIR.glob("*/manifest.json"):
+        if before and manifest_path.parent.name >= before:
+            continue
         try:
             note = json.loads(manifest_path.read_text(encoding="utf-8")).get("note")
         except Exception:
@@ -998,6 +1067,95 @@ def run_quotes_only():
     })
     print(f"[行情刷新] {len(companies)} 家，其中 {no_quote} 家当日无行情（停牌/退市），"
           f"请求 {client.request_count} 次")
+
+
+# ---------------------------------------------------------------------------
+# 仅补抓主营构成（--mainbz-only）
+# 沿用最新版本的单股数据（财务 + 行情），逐股补抓 fina_mainbz 写入新版本，
+# 每股 1 次请求，全量约 5500 次、20 分钟。全部处理完才写 manifest，
+# 中断后的半成品版本不会出现在版本列表里，用 --resume 续传。
+# ---------------------------------------------------------------------------
+
+def run_mainbz_only(resume: str | None = None):
+    load_env_file()
+    if resume:
+        version_id = resume
+        version_dir = VERSIONS_DIR / version_id
+        if not version_dir.exists():
+            sys.exit(f"错误：版本目录不存在: {version_dir}")
+        base_dir = latest_base_version_dir(before=version_id)
+    else:
+        version_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        version_dir = VERSIONS_DIR / version_id
+        base_dir = latest_base_version_dir()
+    if base_dir is None:
+        sys.exit("错误：没有可沿用数据的 A 股版本，请先运行 --full")
+    base_manifest = json.loads((base_dir / "manifest.json").read_text(encoding="utf-8"))
+    client = TushareClient()
+
+    # 已写入且含 main_business 键的跳过；抓取失败的股票写入时不带该键，续传会重试
+    pending, skipped = [], 0
+    for path in sorted((base_dir / "stocks").glob("*.js")):
+        done_path = version_dir / "stocks" / path.name
+        if resume and done_path.exists() and "main_business" in load_stock(done_path):
+            skipped += 1
+        else:
+            pending.append(path)
+    print(f"[主营构成] 版本 {version_id}: 其余数据沿用 {base_dir.name}，"
+          f"待抓 {len(pending)} 家" + (f"，已完成 {skipped} 家" if skipped else ""))
+
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    failed, with_data = [], 0
+    started = time.monotonic()
+
+    def process(path):
+        stock = load_stock(path)
+        stock.pop("main_business", None)
+        try:
+            stock["main_business"] = fetch_main_business(client, stock["code"])
+        finally:
+            stock["version"] = version_id
+            write_stock_file(version_dir, stock)
+        return stock["main_business"] is not None
+
+    workers = max(1, int(os.getenv("FETCH_WORKERS", "8")))
+    print(f"[配置] 并发 {workers} 线程，全局限速 {REQUESTS_PER_MIN} 次/分钟")
+    pool = ThreadPoolExecutor(max_workers=workers)
+    futures = {pool.submit(process, path): path.stem for path in pending}
+    try:
+        for index, future in enumerate(as_completed(futures), 1):
+            try:
+                with_data += future.result()
+            except ServiceNotice:
+                raise
+            except Exception as e:
+                failed.append(futures[future])
+                print(f"  [失败] {futures[future]}: {str(e)[:150]}")
+            if index % 200 == 0 or index == len(pending):
+                print(f"[进度] {skipped + index}/{skipped + len(pending)} "
+                      f"(有数据 {with_data}, 失败 {len(failed)}, 请求 {client.request_count} 次, "
+                      f"用时 {(time.monotonic() - started) / 60:.1f} 分钟)")
+    except (KeyboardInterrupt, ServiceNotice) as e:
+        pool.shutdown(wait=False, cancel_futures=True)
+        print(f"\n[中断] 版本未完成，续传命令: python fetch_data.py --mainbz-only --resume {version_id}")
+        if isinstance(e, ServiceNotice):
+            raise
+        return
+    pool.shutdown(wait=True)
+
+    if resume:
+        manifest_path = version_dir / "manifest.json"
+        if manifest_path.exists():
+            created_at = json.loads(manifest_path.read_text(encoding="utf-8")).get("created_at") or created_at
+    companies = version_companies(load_company_list(), version_dir / "stocks")
+    finalize_version(version_id, version_dir, companies, {
+        "created_at": created_at, "note": f"补抓主营构成（其余沿用 {base_dir.name}）",
+        "trade_date_a": base_manifest.get("trade_date_a"),
+    })
+    if failed:
+        print(f"[警告] {len(failed)} 家失败（已写入但缺主营构成）: "
+              f"{', '.join(failed[:20])}{' ...' if len(failed) > 20 else ''}")
+        print(f"        可运行 python fetch_data.py --mainbz-only --resume {version_id} 重试失败部分")
 
 
 def run(args):
@@ -1097,6 +1255,8 @@ def main():
     group.add_argument("--full", action="store_true", help="全量抓取")
     group.add_argument("--quotes-only", action="store_true",
                        help="仅刷新行情：沿用最新版本的财务数据，只更新股价/PE/市值等（数秒完成）")
+    group.add_argument("--mainbz-only", action="store_true",
+                       help="仅补抓主营业务构成：沿用最新版本的其余数据（约 5500 次请求、20 分钟）")
     parser.add_argument("--resume", metavar="VERSION_ID", help="续传指定版本（跳过已生成的公司）")
     args = parser.parse_args()
     try:
@@ -1104,6 +1264,8 @@ def main():
             if args.resume:
                 parser.error("--quotes-only 不支持 --resume")
             run_quotes_only()
+        elif args.mainbz_only:
+            run_mainbz_only(args.resume)
         else:
             run(args)
     except ServiceNotice as e:

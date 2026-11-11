@@ -775,11 +775,210 @@
         return html + '</tbody></table></div>';
     }
 
+    // ------------------------------------------------------------------
+    // 主营业务构成（Tushare fina_mainbz）：按产品 / 按地区两栏并排，
+    // 年报 / 中报、营收 / 毛利率切换；项目名以「：」分级，子项默认折叠
+    // ------------------------------------------------------------------
+
+    var MB_DIMS = [['P', '按产品'], ['D', '按地区']];
+    var MB_PERIODS = [['1231', '年报'], ['0630', '中报']];
+    var MB_YEARS = 5;
+    var MB_ADJUST = '合计特别调整';  // 各项目之和与合计的差额（如利息收入），固定排在末尾
+    // 构成条配色：已校验色盲区分度的分类色，按最新一期营收排名分配给项目，切换报告期不变色
+    var MB_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
+    var MB_OTHER_COLOR = '#cbd5e1';
+    var mbPeriod = '1231', mbMetric = 'sales';  // 跨股票保留选择（同资产负债表 金额/% 视图）
+    var mbExpanded = {};                         // 已展开的父项目，切换股票时重置
+
+    // 最近的已存在祖先项目（中间层级可能缺失）；没有则为一级项目
+    function mbParentOf(name, names) {
+        var i = name.lastIndexOf('：');
+        while (i > 0) {
+            var parent = name.slice(0, i);
+            if (names[parent]) return parent;
+            i = parent.lastIndexOf('：');
+        }
+        return null;
+    }
+
+    function mbBuild(dimData, suffix) {
+        var periods = Object.keys(dimData).filter(function (p) { return p.slice(4) === suffix; })
+            .sort().reverse().slice(0, MB_YEARS);
+        var values = {}, names = {};
+        periods.forEach(function (p) {
+            dimData[p].items.forEach(function (it) {
+                names[it[0]] = true;
+                (values[it[0]] = values[it[0]] || {})[p] = it;
+            });
+        });
+        // 调整项全为 0（四舍五入误差，如 1000 元）时不显示
+        if (names[MB_ADJUST] && periods.every(function (p) {
+            var it = values[MB_ADJUST][p];
+            return !it || Math.abs(it[1]) < 0.005;
+        })) delete names[MB_ADJUST];
+        var parentOf = {}, children = {}, roots = [];
+        Object.keys(names).forEach(function (n) {
+            var parent = mbParentOf(n, names);
+            parentOf[n] = parent;
+            if (parent) (children[parent] = children[parent] || []).push(n); else roots.push(n);
+        });
+        // 最新一期有数的在前、按营收降序；只在更早期出现的（停用/改名）随后；调整项最后
+        function rankKey(n) {
+            for (var i = 0; i < periods.length; i++) {
+                if (values[n][periods[i]]) return [i, -values[n][periods[i]][1]];
+            }
+            return [periods.length, 0];
+        }
+        function cmp(a, b) {
+            if ((a === MB_ADJUST) !== (b === MB_ADJUST)) return a === MB_ADJUST ? 1 : -1;
+            var ka = rankKey(a), kb = rankKey(b);
+            return ka[0] - kb[0] || ka[1] - kb[1];
+        }
+        roots.sort(cmp);
+        Object.keys(children).forEach(function (k) { children[k].sort(cmp); });
+        return { periods: periods, values: values, parentOf: parentOf, children: children, roots: roots };
+    }
+
+    // 按构成条所在一期的营收排名依次取色（构成条各段即按此顺序排列，相邻色已校验可区分）
+    function mbColorMap(model) {
+        var p = model.periods[0], map = {};
+        model.roots.filter(function (n) {
+            return n !== MB_ADJUST && model.values[n][p] && model.values[n][p][1] > 0;
+        }).slice(0, MB_COLORS.length).forEach(function (n, i) { map[n] = MB_COLORS[i]; });
+        return map;
+    }
+
+    // 最新一期一级项目的 100% 构成条；无配色的项目并入灰色「其他」。有负值项（如银行公允价值变动）时不画
+    function mbBar(model, colors, total, unit) {
+        var p = model.periods[0], present = model.roots.filter(function (n) { return model.values[n][p]; });
+        var sum = 0, negative = false;
+        present.forEach(function (n) {
+            var v = model.values[n][p][1];
+            if (v < 0) negative = true;
+            sum += v;
+        });
+        if (negative || !(sum > 0)) return null;
+        var segs = [], other = 0;
+        present.forEach(function (n) {
+            var v = model.values[n][p][1];
+            if (v <= 0) return;
+            if (colors[n]) segs.push({ name: n, value: v, color: colors[n] });
+            else other += v;
+        });
+        if (other > 0) segs.push({ name: '其他', value: other, color: MB_OTHER_COLOR });
+        var base = total || sum;
+        return '<div class="mb-bar" role="img" aria-label="' + p.slice(0, 4) + ' 构成">' + segs.map(function (s) {
+            return '<span style="flex-grow:' + s.value + ';background:' + s.color + '" title="' + esc(s.name) + ' ' +
+                fmtMoney(s.value) + unit + ' · ' + (s.value / base * 100).toFixed(1) + '%"></span>';
+        }).join('') + '</div>';
+    }
+
+    function mbCell(it, total, isMargin) {
+        if (!it) return '<td><span class="no-data">--</span></td>';
+        if (isMargin) {
+            var margin = it[2] != null && it[1] > 0 ? it[2] / it[1] * 100 : null;
+            return '<td>' + (margin == null ? '<span class="no-data">--</span>' : margin.toFixed(1) + '%') + '</td>';
+        }
+        var share = total ? '<span class="mb-share">' + (it[1] / total * 100).toFixed(1) + '%</span>' : '';
+        return '<td>' + fmtMoney(it[1]) + share + '</td>';
+    }
+
+    function mbRowHtml(name, depth, ctx) {
+        var model = ctx.model, kids = model.children[name] || [];
+        var parent = model.parentOf[name];
+        var label = esc(parent ? name.slice(parent.length + 1) : name);
+        var key = ctx.dim + '|' + name, open = !!mbExpanded[key];
+        var swatch = '';
+        if (!depth && ctx.showSwatch) {
+            var inBar = model.values[name][model.periods[0]] && model.values[name][model.periods[0]][1] > 0;
+            swatch = '<i class="mb-swatch" style="background:' + (inBar ? (ctx.colors[name] || MB_OTHER_COLOR) : 'transparent') + '"></i>';
+        }
+        if (kids.length) {
+            label = '<button type="button" class="mb-toggle" data-mb-toggle="' + esc(key) + '" aria-expanded="' + open + '">' +
+                '<span class="mb-caret">' + (open ? '▾' : '▸') + '</span>' + label + '</button>';
+        }
+        var cls = depth ? 'mb-child' : (name === MB_ADJUST ? 'mb-adjust' : '');
+        var html = '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td title="' + esc(name) + '"' +
+            (depth ? ' style="padding-left:' + (depth * 14) + 'px"' : '') + '>' + swatch + label + '</td>' +
+            model.periods.map(function (p) { return mbCell(model.values[name][p], ctx.dimData[p].total, ctx.isMargin); }).join('') +
+            '</tr>';
+        if (open) kids.forEach(function (k) { html += mbRowHtml(k, depth + 1, ctx); });
+        return html;
+    }
+
+    // 合计行毛利率：一级项目（不含调整项）毛利之和 / 营收之和，任一项缺毛利则不显示
+    function mbTotalMargin(model, p) {
+        var sales = 0, profit = 0;
+        for (var i = 0; i < model.roots.length; i++) {
+            var it = model.values[model.roots[i]][p];
+            if (!it || model.roots[i] === MB_ADJUST) continue;
+            if (it[2] == null) return null;
+            sales += it[1];
+            profit += it[2];
+        }
+        return sales > 0 ? profit / sales * 100 : null;
+    }
+
+    function mbPanel(stock, dim, label, suffix, periodName, unit) {
+        var dimData = (stock.main_business || {})[dim] || {};
+        var model = mbBuild(dimData, suffix);
+        var html = '<div class="mb-panel"><div class="panel-title">' + label;
+        if (!model.periods.length) return html + '</div><div class="panel-empty">暂无数据</div></div>';
+        var isMargin = mbMetric === 'margin';
+        var colors = mbColorMap(model);
+        var bar = mbBar(model, colors, dimData[model.periods[0]].total, unit);
+        html += '<span class="panel-sub">' + (bar ? '构成条为 ' + model.periods[0].slice(0, 4) + ' ' + periodName : '') + '</span></div>' +
+            (bar || '') +
+            '<table class="trend-table mb-table"><thead><tr><th></th>' +
+            model.periods.map(function (p) { return '<th>' + p.slice(0, 4) + '</th>'; }).join('') +
+            '</tr></thead><tbody>';
+        var ctx = { model: model, dim: dim, dimData: dimData, colors: colors, isMargin: isMargin, showSwatch: !!bar };
+        model.roots.forEach(function (n) { html += mbRowHtml(n, 0, ctx); });
+        html += '<tr class="mb-total-row"><td>' + (ctx.showSwatch ? '<i class="mb-swatch"></i>' : '') + '合计</td>' +
+            model.periods.map(function (p) {
+                if (!isMargin) return '<td>' + fmtMoney(dimData[p].total) + '</td>';
+                var m = mbTotalMargin(model, p);
+                return '<td>' + (m == null ? '<span class="no-data">--</span>' : m.toFixed(1) + '%') + '</td>';
+            }).join('') + '</tr>';
+        return html + '</tbody></table></div>';
+    }
+
+    function renderMainBusiness(stock) {
+        var mb = stock.main_business;
+        if (!mb) return '';
+        var hasSuffix = function (suffix) {
+            return MB_DIMS.some(function (d) {
+                return Object.keys(mb[d[0]] || {}).some(function (p) { return p.slice(4) === suffix; });
+            });
+        };
+        // 所选报告期类型无数据时退回另一种（如只有中报）
+        var suffix = hasSuffix(mbPeriod) ? mbPeriod : MB_PERIODS.filter(function (p) { return hasSuffix(p[0]); }).map(function (p) { return p[0]; })[0];
+        if (!suffix) return '';
+        var unit = mb.curr ? '亿' + mb.curr : finUnit(stock);
+        var isMargin = mbMetric === 'margin';
+        var seg = function (attr, options, current) {
+            return '<div class="seg-control">' + options.map(function (o) {
+                return '<button type="button" class="seg-btn' + (o[0] === current ? ' active' : '') + '" data-' + attr + '="' + o[0] + '">' + o[1] + '</button>';
+            }).join('') + '</div>';
+        };
+        var periodName = MB_PERIODS.filter(function (p) { return p[0] === suffix; })[0][1];
+        return '<div class="results-container mb-container">' +
+            '<div class="table-section-title">主营业务构成 <span class="panel-sub">' + periodName + ' · ' +
+            (isMargin ? '毛利率' : unit + ' · 下方小字为占主营收入比例') + '</span>' +
+            '<div class="mb-controls">' +
+            seg('mb-period', MB_PERIODS, suffix) +
+            seg('mb-metric', [['sales', '营收'], ['margin', '毛利率']], mbMetric) +
+            '</div></div>' +
+            '<div class="mb-grid">' + MB_DIMS.map(function (d) { return mbPanel(stock, d[0], d[1], suffix, periodName, unit); }).join('') + '</div>' +
+            '</div>';
+    }
+
     var currentStock = null;
 
     function renderStock(stock) {
         currentStock = stock;
         trendSelection = null;
+        mbExpanded = {};
         var trendHtml = renderTrend(stock);
         el.container.innerHTML =
             '<div class="stock-card-compact">' +
@@ -790,6 +989,7 @@
             '<div class="card-panel ev-panel">' + renderEV(stock) + '</div>' +
             '</div></div>' +
             renderAnnualTable(stock) +
+            renderMainBusiness(stock) +
             renderBalanceSheet(stock);
     }
 
@@ -885,20 +1085,38 @@
             '</div>';
     }
 
+    // 用新渲染的 HTML 原位替换某个分区（仅该分区重渲染，其余内容与状态不变）
+    function replaceSection(selector, html) {
+        var node = el.container.querySelector(selector);
+        if (!node) return;
+        var wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        if (wrap.firstChild) node.parentNode.replaceChild(wrap.firstChild, node);
+    }
+
     // 同期趋势报告期切换（事件委托，重渲染面板内容即可）
     el.container.addEventListener('click', function (e) {
+        if (!currentStock) return;
+        // 主营构成父项目展开 / 折叠
+        var toggle = e.target.closest('[data-mb-toggle]');
+        if (toggle) {
+            mbExpanded[toggle.dataset.mbToggle] = !mbExpanded[toggle.dataset.mbToggle];
+            replaceSection('.mb-container', renderMainBusiness(currentStock));
+            return;
+        }
         var btn = e.target.closest('.seg-btn');
-        if (!btn || !currentStock) return;
-        // 资产负债表 金额/占比 切换：仅重渲染该表，其余内容与状态不变
+        if (!btn) return;
+        if (btn.dataset.mbPeriod || btn.dataset.mbMetric) {
+            mbPeriod = btn.dataset.mbPeriod || mbPeriod;
+            mbMetric = btn.dataset.mbMetric || mbMetric;
+            replaceSection('.mb-container', renderMainBusiness(currentStock));
+            return;
+        }
+        // 资产负债表 金额/占比 切换
         if (btn.dataset.bsMode) {
             if (btn.dataset.bsMode === bsMode) return;
             bsMode = btn.dataset.bsMode;
-            var container = el.container.querySelector('.balance-sheet-container');
-            if (container) {
-                var wrap = document.createElement('div');
-                wrap.innerHTML = renderBalanceSheet(currentStock);
-                if (wrap.firstChild) container.parentNode.replaceChild(wrap.firstChild, container);
-            }
+            replaceSection('.balance-sheet-container', renderBalanceSheet(currentStock));
             return;
         }
         if (btn.dataset.period) {

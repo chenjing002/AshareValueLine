@@ -15,3 +15,6 @@ __pycache__/
 .claude/
 .DS_Store
 
+
+# GitHub Pages staging output
+_site/

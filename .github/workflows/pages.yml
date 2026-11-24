@@ -27,33 +27,12 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      # 只发布每个市场最新 2 个数据版本：全部版本约 2.5 万个文件时 Pages 同步会卡在
-      # syncing_files 直到 10 分钟上限被取消。旧版本仍保留在仓库中，只是不上站点。
-      - name: Assemble static site
-        run: |
-          mkdir _site
-          cp index.html _site/
-          cp -R static _site/
-          touch _site/.nojekyll
-          python3 - <<'EOF'
-          import json, shutil
-          from pathlib import Path
+      - name: Test agent data export
+        run: python3 -m unittest discover -s tests -p 'test_agent_data.py'
 
-          KEEP = 2
-          prefix = "window.VL_VERSIONS = "
-          text = Path("data/versions.js").read_text(encoding="utf-8").strip()
-          index = json.loads(text[len(prefix):].rstrip(";"))
-          for market, entries in index.items():
-              entries = sorted(entries, key=lambda e: e["version"], reverse=True)[:KEEP]
-              index[market] = entries
-              for entry in entries:
-                  src = Path("data/versions") / market / entry["version"]
-                  shutil.copytree(src, Path("_site") / src)
-              print(market, "->", [e["version"] for e in entries])
-          Path("_site/data/versions.js").write_text(
-              prefix + json.dumps(index, ensure_ascii=False, indent=1) + ";\n", encoding="utf-8")
-          EOF
-          echo "files: $(find _site -type f | wc -l), size: $(du -sh _site | cut -f1)"
+      # 保留每个市场最新 2 个浏览器版本；标准 JSON API 仅导出 A 股最新已发布版本。
+      - name: Assemble static site and agent data
+        run: python3 build_pages.py --output _site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
